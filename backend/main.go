@@ -10,6 +10,7 @@ import (
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/imagesource"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/middleware"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/model"
+	"github.com/aitjcize/esp32-photoframe-server/backend/internal/publicart"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/service"
 	"github.com/aitjcize/esp32-photoframe-server/backend/pkg/gcalendar"
 	"github.com/aitjcize/esp32-photoframe-server/backend/pkg/googlephotos"
@@ -178,6 +179,11 @@ func main() {
 	aiGenerationService := service.NewAIGenerationService(settingsService)
 	// Initialize Generative (procedural) Service — fractal / DLA / …
 	generativeService := service.NewGenerativeService(database)
+	// Initialize Public Art Service — server-side museum/open-access artwork.
+	publicArtService := publicart.NewService(publicart.ServiceOptions{
+		Provider:       publicart.NewAICProvider("", nil),
+		ConfigProvider: publicart.NewSettingsConfigProvider(settingsService),
+	})
 
 	// Image-source registry: every image source — synthetic and library —
 	// registers here as its own plugin. The order below mirrors the order
@@ -190,6 +196,7 @@ func main() {
 	sourceRegistry.Register(service.NewSynologyPhotosSource(database, synologyService))
 	sourceRegistry.Register(service.NewURLProxySource(database))
 	sourceRegistry.Register(service.NewAIGenerationSource(aiGenerationService))
+	sourceRegistry.Register(service.NewPublicArtSource(publicArtService))
 	sourceRegistry.Register(service.NewFractalSource(generativeService))
 	sourceRegistry.Register(service.NewDLASource(generativeService))
 

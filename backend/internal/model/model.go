@@ -18,6 +18,7 @@ const (
 	SourceURLProxy       = "url_proxy"
 	SourceAIGeneration   = "ai_generation"
 	SourceImmich         = "immich"
+	SourcePublicArt      = "public_art"
 	SourceFractal        = "fractal"
 	SourceDLA            = "dla"
 )

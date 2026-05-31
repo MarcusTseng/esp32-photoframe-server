@@ -53,6 +53,7 @@
               <v-tab value="synology_photos">Synology</v-tab>
               <v-tab value="url">URL Proxy</v-tab>
               <v-tab value="ai_generation">AI Generation</v-tab>
+              <v-tab value="public_art">Public Art</v-tab>
             </v-tabs>
 
             <v-window v-model="activeDataSourceTab">
@@ -853,6 +854,73 @@
                   </div>
 
                   <v-btn color="primary" @click="save">Save API Keys</v-btn>
+                </v-card-text>
+              </v-window-item>
+
+              <!-- Public Art -->
+              <v-window-item value="public_art">
+                <v-card-text>
+                  <v-alert
+                    type="info"
+                    variant="tonal"
+                    class="mb-4"
+                    density="compact"
+                  >
+                    Minimal public-domain/open-access artwork source. This first
+                    step uses Art Institute of Chicago search; later steps will
+                    add search UI, manual compose/crop, cache, and more museums.
+                  </v-alert>
+
+                  <v-text-field
+                    :model-value="getImageUrl('public_art')"
+                    label="Image Endpoint URL (for firmware config)"
+                    readonly
+                    variant="outlined"
+                    density="compact"
+                    append-inner-icon="mdi-content-copy"
+                    @click:append-inner="
+                      copyToClipboard(getImageUrl('public_art'))
+                    "
+                    class="mb-4"
+                  ></v-text-field>
+
+                  <v-text-field
+                    v-model="form.public_art_query"
+                    label="Default search query"
+                    placeholder="monet, hokusai, landscape..."
+                    variant="outlined"
+                    density="compact"
+                    class="mb-4"
+                    hint="/image/public_art fetches the best-ranked AIC result for this query."
+                    persistent-hint
+                  ></v-text-field>
+
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-text-field
+                        v-model.number="form.public_art_min_image_long_edge"
+                        label="Minimum source long edge"
+                        type="number"
+                        variant="outlined"
+                        density="compact"
+                        hint="Keep at least 1600 for 13.3 inch readiness."
+                        persistent-hint
+                      ></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-text-field
+                        v-model.number="form.public_art_preferred_image_long_edge"
+                        label="Preferred source long edge"
+                        type="number"
+                        variant="outlined"
+                        density="compact"
+                        hint="Ranking prefers this size or larger."
+                        persistent-hint
+                      ></v-text-field>
+                    </v-col>
+                  </v-row>
+
+                  <v-btn color="primary" @click="save">Save Public Art Settings</v-btn>
                 </v-card-text>
               </v-window-item>
             </v-window>
@@ -2107,6 +2175,7 @@ const sourceOptions = [
   { title: 'Synology Photos', value: 'synology_photos' },
   { title: 'URL Proxy', value: 'url_proxy' },
   { title: 'AI Generation', value: 'ai_generation' },
+  { title: 'Public Art', value: 'public_art' },
   { title: 'Fractal (Mandelbrot zoom)', value: 'fractal' },
   { title: 'DLA (diffusion-limited aggregation)', value: 'dla' },
 ];
@@ -2976,6 +3045,9 @@ const form = reactive({
   telegram_target_device_id: [] as number[],
   openai_api_key: '',
   google_api_key: '',
+  public_art_query: 'art',
+  public_art_min_image_long_edge: 1600,
+  public_art_preferred_image_long_edge: 2000,
   device_host: '', // Keep for backward compatibility/display? Or remove. Remove from form, keep in store maybe?
 });
 
@@ -3009,6 +3081,27 @@ const showMessage = (msg: string, isError = false) => {
   snackbar.message = msg;
   snackbar.color = isError ? 'error' : 'success';
   snackbar.show = true;
+};
+
+const publicArtConfigFromForm = () => ({
+  provider: 'aic',
+  query: form.public_art_query || 'art',
+  min_image_long_edge: Number(form.public_art_min_image_long_edge) || 1600,
+  preferred_image_long_edge:
+    Number(form.public_art_preferred_image_long_edge) || 2000,
+});
+
+const applyPublicArtConfig = (raw: string | undefined) => {
+  if (!raw) return;
+  try {
+    const cfg = JSON.parse(raw);
+    form.public_art_query = cfg.query || 'art';
+    form.public_art_min_image_long_edge = cfg.min_image_long_edge || 1600;
+    form.public_art_preferred_image_long_edge =
+      cfg.preferred_image_long_edge || 2000;
+  } catch (e) {
+    console.error('Failed to parse public_art_config', e);
+  }
 };
 
 onMounted(async () => {
@@ -3061,6 +3154,7 @@ onMounted(async () => {
     openai_api_key: store.settings.openai_api_key || '',
     google_api_key: store.settings.google_api_key || '',
   });
+  applyPublicArtConfig(store.settings.public_art_config);
 
   // Load cached albums if available
   if (store.settings.synology_albums_cache) {
@@ -3154,6 +3248,7 @@ const saveSettingsInternal = async () => {
     ),
     openai_api_key: form.openai_api_key,
     google_api_key: form.google_api_key,
+    public_art_config: JSON.stringify(publicArtConfigFromForm()),
   });
 };
 

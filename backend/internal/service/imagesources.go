@@ -5,8 +5,11 @@ package service
 // in their own *_source.go files alongside this one.
 
 import (
+	"image"
+
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/imagesource"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/model"
+	"github.com/aitjcize/esp32-photoframe-server/backend/internal/publicart"
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -80,6 +83,33 @@ func (s *dlaSource) Fetch(req *imagesource.Request) (*imagesource.Response, erro
 		return nil, err
 	}
 	return &imagesource.Response{Image: img, SkipPostProcessing: true}, nil
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Public Art
+// ────────────────────────────────────────────────────────────────────────────
+
+type publicArtFetcher interface {
+	FetchImage() (image.Image, publicart.Candidate, error)
+}
+
+type publicArtSource struct{ svc publicArtFetcher }
+
+// NewPublicArtSource wraps the public-art service as a registry plugin.
+func NewPublicArtSource(svc publicArtFetcher) imagesource.Source {
+	return &publicArtSource{svc: svc}
+}
+
+func (s *publicArtSource) Name() string { return model.SourcePublicArt }
+
+func (s *publicArtSource) Fetch(req *imagesource.Request) (*imagesource.Response, error) {
+	img, _, err := s.svc.FetchImage()
+	if err != nil {
+		return nil, err
+	}
+	// Museum artwork behaves like a normal photo: let renderer/processor apply
+	// overlays, display mode, rotation, and e-paper dithering.
+	return &imagesource.Response{Image: img}, nil
 }
 
 // ────────────────────────────────────────────────────────────────────────────
