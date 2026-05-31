@@ -58,11 +58,10 @@ func (s *Service) FetchImage() (image.Image, Candidate, error) {
 	if err != nil {
 		return nil, Candidate{}, err
 	}
-	candidates, err := s.provider.Search(cfg.Query, SearchOptions{Limit: 10})
+	ranked, err := s.SearchCandidates(cfg, 1)
 	if err != nil {
 		return nil, Candidate{}, err
 	}
-	ranked := RankCandidates(candidates, cfg)
 	if len(ranked) == 0 {
 		return nil, Candidate{}, errors.New("publicart: no image candidates found")
 	}
@@ -72,6 +71,26 @@ func (s *Service) FetchImage() (image.Image, Candidate, error) {
 		return nil, Candidate{}, err
 	}
 	return img, selected, nil
+}
+
+func (s *Service) SearchCandidates(cfg Config, limit int) ([]Candidate, error) {
+	if s.provider == nil {
+		return nil, errors.New("publicart: provider is required")
+	}
+	cfg = normalizeConfig(cfg)
+	searchLimit := limit
+	if searchLimit < 10 {
+		searchLimit = 10
+	}
+	candidates, err := s.provider.Search(cfg.Query, SearchOptions{Limit: searchLimit})
+	if err != nil {
+		return nil, err
+	}
+	ranked := RankCandidates(candidates, cfg)
+	if limit > 0 && len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+	return ranked, nil
 }
 
 func (s *Service) currentConfig() (Config, error) {

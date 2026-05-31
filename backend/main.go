@@ -253,6 +253,7 @@ func main() {
 		DB:             database,
 		DataDir:        dataDir,
 	})
+	pah := handler.NewPublicArtHandler(publicArtService)
 	ch := handler.NewCalendarHandler(googleCalendarClient, calendarClient)
 	ah := handler.NewAuthHandler(authService)
 
@@ -333,6 +334,9 @@ func main() {
 	protectedApi.GET("/gallery/urls", gh.ListURLSources)
 	protectedApi.PUT("/gallery/urls/:id", gh.UpdateURLSource)
 	protectedApi.DELETE("/gallery/urls/:id", gh.DeleteURLSource)
+
+	// Public Art
+	protectedApi.POST("/public-art/search", pah.Search)
 
 	// Google Picker (Protected)
 	protectedApi.GET("/google/picker/session", googleHandler.CreatePickerSession)

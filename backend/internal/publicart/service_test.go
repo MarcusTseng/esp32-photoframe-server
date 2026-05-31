@@ -99,6 +99,29 @@ func TestServiceFetchImageUsesLatestConfigFromProvider(t *testing.T) {
 	}
 }
 
+func TestServiceSearchCandidatesRanksAndLimitsResults(t *testing.T) {
+	provider := &fakeProvider{candidates: []Candidate{
+		{ID: "small", Title: "Small", Width: 800, Height: 600},
+		{ID: "large", Title: "Large", Width: 3000, Height: 2000},
+		{ID: "minimum", Title: "Minimum", Width: 1600, Height: 900},
+	}}
+	svc := NewService(ServiceOptions{Provider: provider, Config: DefaultConfig()})
+
+	candidates, err := svc.SearchCandidates(Config{Provider: ProviderAIC, Query: "monet", MinImageLongEdge: 1600, PreferredImageLongEdge: 2000}, 2)
+	if err != nil {
+		t.Fatalf("SearchCandidates returned error: %v", err)
+	}
+	if got, want := provider.queries, []string{"monet"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("provider queries = %#v, want %#v", got, want)
+	}
+	if got, want := len(candidates), 2; got != want {
+		t.Fatalf("len(candidates) = %d, want %d", got, want)
+	}
+	if candidates[0].ID != "large" || candidates[1].ID != "minimum" {
+		t.Fatalf("candidate order = %#v, want large then minimum", candidates)
+	}
+}
+
 type fakeConfigProvider struct {
 	configs []Config
 	calls   int
