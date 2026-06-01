@@ -920,6 +920,97 @@
                     </v-col>
                   </v-row>
 
+                  <v-card variant="tonal" color="surface" class="mb-4 public-art-search-panel">
+                    <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2">
+                      <div>
+                        <div class="text-subtitle-1 font-weight-bold">Search preview</div>
+                        <div class="text-caption text-medium-emphasis">
+                          Browse candidates before assigning the public art source to a frame.
+                        </div>
+                      </div>
+                      <v-btn
+                        color="primary"
+                        prepend-icon="mdi-magnify"
+                        :loading="publicArtSearching"
+                        @click="searchPublicArt"
+                      >
+                        Search Public Art
+                      </v-btn>
+                    </v-card-title>
+
+                    <v-card-text>
+                      <v-alert
+                        v-if="publicArtSearchError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                      >
+                        {{ publicArtSearchError }}
+                      </v-alert>
+
+                      <v-alert
+                        v-if="!publicArtSearching && publicArtSearched && publicArtCandidates.length === 0 && !publicArtSearchError"
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                      >
+                        No artwork candidates found for this query.
+                      </v-alert>
+
+                      <v-row v-if="publicArtCandidates.length > 0">
+                        <v-col
+                          v-for="candidate in publicArtCandidates"
+                          :key="candidate.id"
+                          cols="12"
+                          sm="6"
+                          lg="4"
+                        >
+                          <v-card variant="outlined" class="h-100 public-art-candidate-card">
+                            <v-img
+                              :src="candidate.image_url"
+                              height="180"
+                              cover
+                              class="bg-grey-lighten-3"
+                            ></v-img>
+                            <v-card-title class="text-subtitle-2 pb-1">
+                              {{ candidate.title || 'Untitled artwork' }}
+                            </v-card-title>
+                            <v-card-subtitle v-if="candidate.artist || candidate.date">
+                              {{ [candidate.artist, candidate.date].filter(Boolean).join(' · ') }}
+                            </v-card-subtitle>
+                            <v-card-text class="pt-2">
+                              <div class="d-flex flex-wrap ga-2 mb-2">
+                                <v-chip size="x-small" color="primary" variant="tonal">
+                                  {{ candidate.provider.toUpperCase() }}
+                                </v-chip>
+                                <v-chip
+                                  v-if="candidate.width || candidate.height"
+                                  size="x-small"
+                                  :color="isPublicArtCandidateLargeEnough(candidate) ? 'success' : 'warning'"
+                                  variant="tonal"
+                                >
+                                  {{ candidate.width || '?' }}×{{ candidate.height || '?' }}
+                                </v-chip>
+                              </div>
+                              <a
+                                v-if="candidate.source_url"
+                                :href="candidate.source_url"
+                                target="_blank"
+                                rel="noopener"
+                                class="text-primary text-caption text-decoration-none"
+                              >
+                                Source
+                                <v-icon size="x-small" icon="mdi-open-in-new"></v-icon>
+                              </a>
+                            </v-card-text>
+                          </v-card>
+                        </v-col>
+                      </v-row>
+                    </v-card-text>
+                  </v-card>
+
                   <v-btn color="primary" @click="save">Save Public Art Settings</v-btn>
                 </v-card-text>
               </v-window-item>
@@ -3010,6 +3101,28 @@ const snackbar = reactive({
   color: 'success',
 });
 
+type PublicArtCandidate = {
+  provider: string;
+  id: string;
+  title: string;
+  artist?: string;
+  date?: string;
+  image_url: string;
+  source_url?: string;
+  width?: number;
+  height?: number;
+};
+
+const publicArtCandidates = ref<PublicArtCandidate[]>([]);
+const publicArtSearching = ref(false);
+const publicArtSearched = ref(false);
+const publicArtSearchError = ref('');
+
+const isPublicArtCandidateLargeEnough = (candidate: PublicArtCandidate) => {
+  const longEdge = Math.max(candidate.width || 0, candidate.height || 0);
+  return longEdge >= (Number(form.public_art_min_image_long_edge) || 1600);
+};
+
 const form = reactive({
   Orientation: 'landscape',
   DisplayWidth: 800,
@@ -3090,6 +3203,25 @@ const publicArtConfigFromForm = () => ({
   preferred_image_long_edge:
     Number(form.public_art_preferred_image_long_edge) || 2000,
 });
+
+const searchPublicArt = async () => {
+  publicArtSearching.value = true;
+  publicArtSearched.value = true;
+  publicArtSearchError.value = '';
+  try {
+    const response = await api.post('/public-art/search', {
+      ...publicArtConfigFromForm(),
+      limit: 12,
+    });
+    publicArtCandidates.value = Array.isArray(response.data) ? response.data : [];
+  } catch (e: any) {
+    publicArtCandidates.value = [];
+    publicArtSearchError.value =
+      e.response?.data?.error || e.message || 'Failed to search public art';
+  } finally {
+    publicArtSearching.value = false;
+  }
+};
 
 const applyPublicArtConfig = (raw: string | undefined) => {
   if (!raw) return;
