@@ -7,7 +7,7 @@ import (
 
 const (
 	SettingsKeyConfig            = "public_art_config"
-	SettingsKeySelectedCandidate = "public_art_selected_candidate"
+	SettingsKeySelectedArtwork   = "public_art_selected_candidate" // intentionally the old key for backward compat
 )
 
 type Config struct {
@@ -83,43 +83,80 @@ func normalizeConfig(cfg Config) Config {
 	return cfg
 }
 
-func LoadSelectedCandidate(settings SettingsGetter) (Candidate, bool, error) {
+// LoadSelectedArtwork loads the stored selected artwork with composition.
+// Returns (SelectedArtwork, found, error).
+// Backward compat: if stored value is a plain Candidate (no composition field),
+// wraps it with DefaultComposition().
+func LoadSelectedArtwork(settings SettingsGetter) (SelectedArtwork, bool, error) {
 	if settings == nil {
-		return Candidate{}, false, nil
+		return SelectedArtwork{}, false, nil
 	}
-	value, err := settings.Get(SettingsKeySelectedCandidate)
+	value, err := settings.Get(SettingsKeySelectedArtwork)
 	if err != nil || value == "" {
-		return Candidate{}, false, err
+		return SelectedArtwork{}, false, err
 	}
+
+	// Try SelectedArtwork first
+	var artwork SelectedArtwork
+	if err := json.Unmarshal([]byte(value), &artwork); err == nil && artwork.Candidate.Provider != "" {
+		if artwork.Composition.ScaleMode == "" {
+			artwork.Composition = DefaultComposition()
+		}
+		if err := validateSelectedArtwork(artwork); err != nil {
+			return SelectedArtwork{}, false, err
+		}
+		return artwork, true, nil
+	}
+
+	// Fallback: plain Candidate (backward compat)
 	var candidate Candidate
 	if err := json.Unmarshal([]byte(value), &candidate); err != nil {
-		return Candidate{}, false, err
+		return SelectedArtwork{}, false, err
 	}
 	if err := validateSelectedCandidate(candidate); err != nil {
-		return Candidate{}, false, err
+		return SelectedArtwork{}, false, err
 	}
-	return candidate, true, nil
+	return SelectedArtwork{Candidate: candidate, Composition: DefaultComposition()}, true, nil
 }
 
-func SaveSelectedCandidate(settings SettingsSetter, candidate Candidate) error {
+// SaveSelectedArtwork stores the selected artwork with composition.
+func SaveSelectedArtwork(settings SettingsSetter, artwork SelectedArtwork) error {
 	if settings == nil {
 		return errors.New("publicart: settings store is required")
 	}
-	if err := validateSelectedCandidate(candidate); err != nil {
+	if err := validateSelectedArtwork(artwork); err != nil {
 		return err
 	}
-	data, err := json.Marshal(candidate)
+	data, err := json.Marshal(artwork)
 	if err != nil {
 		return err
 	}
-	return settings.Set(SettingsKeySelectedCandidate, string(data))
+	return settings.Set(SettingsKeySelectedArtwork, string(data))
 }
 
-func ClearSelectedCandidate(settings SettingsSetter) error {
+// ClearSelectedArtwork clears the stored selected artwork.
+func ClearSelectedArtwork(settings SettingsSetter) error {
 	if settings == nil {
 		return errors.New("publicart: settings store is required")
 	}
-	return settings.Set(SettingsKeySelectedCandidate, "")
+	return settings.Set(SettingsKeySelectedArtwork, "")
+}
+
+// validateSelectedArtwork validates a SelectedArtwork.
+func validateSelectedArtwork(artwork SelectedArtwork) error {
+	if err := validateSelectedCandidate(artwork.Candidate); err != nil {
+		return err
+	}
+	if artwork.Composition.ScaleMode == "" {
+		return errors.New("publicart: composition scale_mode is required")
+	}
+	if artwork.Composition.ScaleMode != "cover" && artwork.Composition.ScaleMode != "fit" && artwork.Composition.ScaleMode != "custom" {
+		return errors.New("publicart: composition scale_mode must be cover, fit, or custom")
+	}
+	if artwork.Composition.Zoom < 0.1 || artwork.Composition.Zoom > 10 {
+		return errors.New("publicart: composition zoom must be between 0.1 and 10")
+	}
+	return nil
 }
 
 func validateSelectedCandidate(candidate Candidate) error {

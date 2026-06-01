@@ -70,11 +70,11 @@ func TestPublicArtSearchReturnsRankedCandidates(t *testing.T) {
 	}
 }
 
-func TestPublicArtSelectStoresCandidate(t *testing.T) {
+func TestPublicArtSelectStoresArtworkWithComposition(t *testing.T) {
 	e := echo.New()
 	settings := &fakePublicArtSettingsStore{}
 	h := NewPublicArtHandler(&fakePublicArtSearchService{}, settings)
-	body := `{"candidate":{"provider":"aic","id":"aic:1","title":"Water Lilies","image_url":"https://example.test/image.jpg"}}`
+	body := `{"candidate":{"provider":"aic","id":"aic:1","title":"Water Lilies","image_url":"https://example.test/image.jpg"},"composition":{"scale_mode":"cover","zoom":1.5,"pan_x":0.1,"pan_y":0,"background_color":"white"}}`
 	req := httptest.NewRequest(http.MethodPost, "/api/public-art/select", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -85,12 +85,12 @@ func TestPublicArtSelectStoresCandidate(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	var candidate publicart.Candidate
-	if err := json.Unmarshal([]byte(settings.values[publicart.SettingsKeySelectedCandidate]), &candidate); err != nil {
-		t.Fatalf("decode stored candidate: %v", err)
+	var artwork publicart.SelectedArtwork
+	if err := json.Unmarshal([]byte(settings.values[publicart.SettingsKeySelectedArtwork]), &artwork); err != nil {
+		t.Fatalf("decode stored artwork: %v", err)
 	}
-	if candidate.ID != "aic:1" || candidate.ImageURL == "" {
-		t.Fatalf("stored candidate = %#v", candidate)
+	if artwork.Candidate.ID != "aic:1" || artwork.Composition.ScaleMode != "cover" || artwork.Composition.Zoom != 1.5 {
+		t.Fatalf("stored artwork = %#v", artwork)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestPublicArtSelectRejectsMissingImageURL(t *testing.T) {
 
 func TestPublicArtClearSelectionClearsSetting(t *testing.T) {
 	e := echo.New()
-	settings := &fakePublicArtSettingsStore{values: map[string]string{publicart.SettingsKeySelectedCandidate: `{"provider":"aic"}`}}
+	settings := &fakePublicArtSettingsStore{values: map[string]string{publicart.SettingsKeySelectedArtwork: `{"candidate":{"provider":"aic","id":"aic:1","image_url":"https://example.test/img.jpg"},"composition":{"scale_mode":"cover"}}`}}
 	h := NewPublicArtHandler(&fakePublicArtSearchService{}, settings)
 	req := httptest.NewRequest(http.MethodDelete, "/api/public-art/select", nil)
 	rec := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestPublicArtClearSelectionClearsSetting(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if got := settings.values[publicart.SettingsKeySelectedCandidate]; got != "" {
+	if got := settings.values[publicart.SettingsKeySelectedArtwork]; got != "" {
 		t.Fatalf("selected setting = %q, want empty", got)
 	}
 }

@@ -12,10 +12,16 @@ import (
 
 type fakePublicArtFetcher struct{}
 
-func (fakePublicArtFetcher) FetchImage() (image.Image, publicart.Candidate, error) {
+func (fakePublicArtFetcher) FetchImage() (image.Image, publicart.SelectedArtwork, error) {
 	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})
-	return img, publicart.Candidate{ID: "aic:1"}, nil
+	return img, publicart.SelectedArtwork{Candidate: publicart.Candidate{ID: "aic:1"}}, nil
+}
+
+func (fakePublicArtFetcher) FetchImageWithComposition(targetW, targetH int) (image.Image, publicart.SelectedArtwork, error) {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	return img, publicart.SelectedArtwork{Candidate: publicart.Candidate{ID: "aic:1"}}, nil
 }
 
 func TestPublicArtSourceNameAndFetch(t *testing.T) {

@@ -47,8 +47,8 @@ func TestServiceFetchImageSearchesRanksAndDecodesImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchImage returned error: %v", err)
 	}
-	if selected.ID != "large" {
-		t.Fatalf("selected ID = %q, want large", selected.ID)
+	if selected.Candidate.ID != "large" {
+		t.Fatalf("selected ID = %q, want large", selected.Candidate.ID)
 	}
 	bounds := img.Bounds()
 	if bounds.Dx() != 2 || bounds.Dy() != 1 {
@@ -133,8 +133,8 @@ func TestServiceFetchImageSelectedCandidateBypassesProviderAndUsesCache(t *testi
 
 	store := &fakeSettingsStore{}
 	selected := Candidate{Provider: ProviderAIC, ID: "aic:selected", Title: "Selected", ImageURL: imageServer.URL}
-	if err := SaveSelectedCandidate(store, selected); err != nil {
-		t.Fatalf("SaveSelectedCandidate returned error: %v", err)
+	if err := SaveSelectedArtwork(store, SelectedArtwork{Candidate: selected, Composition: DefaultComposition()}); err != nil {
+		t.Fatalf("SaveSelectedArtwork returned error: %v", err)
 	}
 	provider := &fakeProvider{candidates: []Candidate{{ID: "provider", ImageURL: imageServer.URL, Width: 3000, Height: 2000}}}
 	svc := NewService(ServiceOptions{
@@ -148,8 +148,8 @@ func TestServiceFetchImageSelectedCandidateBypassesProviderAndUsesCache(t *testi
 	if err != nil {
 		t.Fatalf("first FetchImage returned error: %v", err)
 	}
-	if got.ID != selected.ID {
-		t.Fatalf("selected ID = %q, want %q", got.ID, selected.ID)
+	if got.Candidate.ID != selected.ID {
+		t.Fatalf("selected ID = %q, want %q", got.Candidate.ID, selected.ID)
 	}
 	if len(provider.queries) != 0 {
 		t.Fatalf("provider queries = %#v, want none", provider.queries)
@@ -176,8 +176,8 @@ func TestServiceFetchImageBadCacheFallsBackToDownload(t *testing.T) {
 
 	store := &fakeSettingsStore{}
 	selected := Candidate{Provider: ProviderAIC, ID: "aic:selected", Title: "Selected", ImageURL: imageServer.URL}
-	if err := SaveSelectedCandidate(store, selected); err != nil {
-		t.Fatalf("SaveSelectedCandidate returned error: %v", err)
+	if err := SaveSelectedArtwork(store, SelectedArtwork{Candidate: selected, Composition: DefaultComposition()}); err != nil {
+		t.Fatalf("SaveSelectedArtwork returned error: %v", err)
 	}
 	cacheDir := t.TempDir()
 	svc := NewService(ServiceOptions{HTTPClient: imageServer.Client(), Settings: store, CacheDir: cacheDir})

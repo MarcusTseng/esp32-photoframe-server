@@ -100,34 +100,67 @@ func TestRankCandidatesPrefersResolutionThenTitle(t *testing.T) {
 	}
 }
 
-func TestSelectedCandidateSettingsHelpers(t *testing.T) {
+func TestSelectedArtworkSettingsHelpers(t *testing.T) {
 	store := &fakeSettingsStore{}
-	if _, ok, err := LoadSelectedCandidate(store); err != nil || ok {
-		t.Fatalf("LoadSelectedCandidate empty = ok %v err %v, want false nil", ok, err)
+	if _, ok, err := LoadSelectedArtwork(store); err != nil || ok {
+		t.Fatalf("LoadSelectedArtwork empty = ok %v err %v, want false nil", ok, err)
 	}
 
 	candidate := Candidate{Provider: ProviderAIC, ID: "aic:1", Title: "Water Lilies", ImageURL: "https://example.test/image.jpg"}
-	if err := SaveSelectedCandidate(store, candidate); err != nil {
-		t.Fatalf("SaveSelectedCandidate returned error: %v", err)
+	artwork := SelectedArtwork{Candidate: candidate, Composition: DefaultComposition()}
+	if err := SaveSelectedArtwork(store, artwork); err != nil {
+		t.Fatalf("SaveSelectedArtwork returned error: %v", err)
 	}
-	loaded, ok, err := LoadSelectedCandidate(store)
+	loaded, ok, err := LoadSelectedArtwork(store)
 	if err != nil {
-		t.Fatalf("LoadSelectedCandidate returned error: %v", err)
+		t.Fatalf("LoadSelectedArtwork returned error: %v", err)
 	}
-	if !ok || loaded.ID != candidate.ID || loaded.ImageURL != candidate.ImageURL {
-		t.Fatalf("loaded = %#v ok=%v, want %#v true", loaded, ok, candidate)
+	if !ok || loaded.Candidate.ID != candidate.ID || loaded.Candidate.ImageURL != candidate.ImageURL {
+		t.Fatalf("loaded = %#v ok=%v, want %#v true", loaded, ok, artwork)
 	}
-	if err := ClearSelectedCandidate(store); err != nil {
-		t.Fatalf("ClearSelectedCandidate returned error: %v", err)
+	if err := ClearSelectedArtwork(store); err != nil {
+		t.Fatalf("ClearSelectedArtwork returned error: %v", err)
 	}
-	if got := store.values[SettingsKeySelectedCandidate]; got != "" {
+	if got := store.values[SettingsKeySelectedArtwork]; got != "" {
 		t.Fatalf("cleared value = %q, want empty", got)
 	}
 }
 
-func TestSaveSelectedCandidateRejectsMissingImageURL(t *testing.T) {
+func TestSaveSelectedArtworkRejectsMissingImageURL(t *testing.T) {
 	store := &fakeSettingsStore{}
-	if err := SaveSelectedCandidate(store, Candidate{Provider: ProviderAIC, ID: "aic:1"}); err == nil {
-		t.Fatal("SaveSelectedCandidate returned nil error for missing image_url")
+	if err := SaveSelectedArtwork(store, SelectedArtwork{Candidate: Candidate{Provider: ProviderAIC, ID: "aic:1"}}); err == nil {
+		t.Fatal("SaveSelectedArtwork returned nil error for missing image_url")
+	}
+}
+
+func TestSaveSelectedArtworkRejectsInvalidScaleMode(t *testing.T) {
+	store := &fakeSettingsStore{}
+	if err := SaveSelectedArtwork(store, SelectedArtwork{
+		Candidate:   Candidate{Provider: ProviderAIC, ID: "aic:1", ImageURL: "https://example.test/img.jpg"},
+		Composition: Composition{ScaleMode: "invalid"},
+	}); err == nil {
+		t.Fatal("SaveSelectedArtwork returned nil error for invalid scale_mode")
+	}
+}
+
+func TestLoadSelectedArtworkBackwardCompatWithCandidate(t *testing.T) {
+	// Old stored value: plain Candidate (no composition)
+	store := &fakeSettingsStore{
+		values: map[string]string{
+			SettingsKeySelectedArtwork: `{"provider":"aic","id":"aic:1","title":"Water Lilies","image_url":"https://example.test/img.jpg"}`,
+		},
+	}
+	loaded, ok, err := LoadSelectedArtwork(store)
+	if err != nil {
+		t.Fatalf("LoadSelectedArtwork returned error: %v", err)
+	}
+	if !ok {
+		t.Fatal("LoadSelectedArtwork returned ok=false, want true")
+	}
+	if loaded.Candidate.ID != "aic:1" {
+		t.Fatalf("loaded.Candidate.ID = %q, want aic:1", loaded.Candidate.ID)
+	}
+	if loaded.Composition.ScaleMode != "cover" {
+		t.Fatalf("loaded.Composition.ScaleMode = %q, want cover (default)", loaded.Composition.ScaleMode)
 	}
 }

@@ -62,37 +62,55 @@ func NewService(opts ServiceOptions) *Service {
 	}
 }
 
-func (s *Service) FetchImage() (image.Image, Candidate, error) {
-	if selected, ok, err := LoadSelectedCandidate(s.settings); err != nil {
-		return nil, Candidate{}, err
-	} else if ok {
-		img, err := s.fetchCandidateImage(selected)
+func (s *Service) FetchImage() (image.Image, SelectedArtwork, error) {
+	return s.FetchImageWithComposition(0, 0)
+}
+
+func (s *Service) FetchImageWithComposition(targetW, targetH int) (image.Image, SelectedArtwork, error) {
+	artwork, ok, err := LoadSelectedArtwork(s.settings)
+	if err != nil {
+		return nil, SelectedArtwork{}, err
+	}
+	if ok {
+		img, err := s.fetchArtworkImage(artwork.Candidate)
 		if err != nil {
-			return nil, Candidate{}, err
+			return nil, SelectedArtwork{}, err
 		}
-		return img, selected, nil
+		if targetW > 0 && targetH > 0 {
+			comp := artwork.Composition
+			if comp.ScaleMode == "" {
+				comp = DefaultComposition()
+			}
+			img = ComposeImage(img, comp, targetW, targetH)
+		}
+		return img, artwork, nil
 	}
 
+	// Fall back to provider search
 	if s.provider == nil {
-		return nil, Candidate{}, errors.New("publicart: provider is required")
+		return nil, SelectedArtwork{}, errors.New("publicart: provider is required")
 	}
 	cfg, err := s.currentConfig()
 	if err != nil {
-		return nil, Candidate{}, err
+		return nil, SelectedArtwork{}, err
 	}
 	ranked, err := s.SearchCandidates(cfg, 1)
 	if err != nil {
-		return nil, Candidate{}, err
+		return nil, SelectedArtwork{}, err
 	}
 	if len(ranked) == 0 {
-		return nil, Candidate{}, errors.New("publicart: no image candidates found")
+		return nil, SelectedArtwork{}, errors.New("publicart: no image candidates found")
 	}
-	selected := ranked[0]
-	img, err := s.fetchCandidateImage(selected)
+	candidate := ranked[0]
+	img, err := s.fetchArtworkImage(candidate)
 	if err != nil {
-		return nil, Candidate{}, err
+		return nil, SelectedArtwork{}, err
 	}
-	return img, selected, nil
+	// Apply default cover composition
+	if targetW > 0 && targetH > 0 {
+		img = ComposeImage(img, DefaultComposition(), targetW, targetH)
+	}
+	return img, SelectedArtwork{Candidate: candidate, Composition: DefaultComposition()}, nil
 }
 
 func (s *Service) SearchCandidates(cfg Config, limit int) ([]Candidate, error) {
@@ -158,7 +176,7 @@ func (s *Service) downloadImageBytes(imageURL string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, maxImageDownloadBytes))
 }
 
-func (s *Service) fetchCandidateImage(candidate Candidate) (image.Image, error) {
+func (s *Service) fetchArtworkImage(candidate Candidate) (image.Image, error) {
 	if s.cacheDir != "" {
 		if data, ok := s.readCachedImage(candidate); ok {
 			if img, _, err := image.Decode(bytes.NewReader(data)); err == nil {

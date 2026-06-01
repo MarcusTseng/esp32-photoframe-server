@@ -90,7 +90,8 @@ func (s *dlaSource) Fetch(req *imagesource.Request) (*imagesource.Response, erro
 // ────────────────────────────────────────────────────────────────────────────
 
 type publicArtFetcher interface {
-	FetchImage() (image.Image, publicart.Candidate, error)
+	FetchImage() (image.Image, publicart.SelectedArtwork, error)
+	FetchImageWithComposition(targetW, targetH int) (image.Image, publicart.SelectedArtwork, error)
 }
 
 type publicArtSource struct{ svc publicArtFetcher }
@@ -103,7 +104,13 @@ func NewPublicArtSource(svc publicArtFetcher) imagesource.Source {
 func (s *publicArtSource) Name() string { return model.SourcePublicArt }
 
 func (s *publicArtSource) Fetch(req *imagesource.Request) (*imagesource.Response, error) {
-	img, _, err := s.svc.FetchImage()
+	var img image.Image
+	var err error
+	if req.Width > 0 && req.Height > 0 {
+		img, _, err = s.svc.FetchImageWithComposition(req.Width, req.Height)
+	} else {
+		img, _, err = s.svc.FetchImage()
+	}
 	if err != nil {
 		return nil, err
 	}
