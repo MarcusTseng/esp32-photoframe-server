@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"io"
 	"net/http"
@@ -115,6 +116,35 @@ func (h *PublicArtHandler) ClearSelection(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "cleared"})
 }
 
+func (h *PublicArtHandler) Thumbnail(c echo.Context) error {
+	imageURL := c.QueryParam("candidate_image_url")
+	thumbnailURL := c.QueryParam("candidate_thumbnail_url")
+	if imageURL == "" && thumbnailURL == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate_image_url or candidate_thumbnail_url is required"})
+	}
+
+	data, err := h.downloadImage(imageURL)
+	if err != nil && thumbnailURL != "" {
+		data, err = h.downloadImage(thumbnailURL)
+	}
+	if err != nil {
+		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch thumbnail: " + err.Error()})
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to decode thumbnail: " + err.Error()})
+	}
+	composed := publicart.ComposeImage(img, publicart.Composition{ScaleMode: "cover", Zoom: 1, BackgroundColor: "white"}, 360, 190)
+
+	c.Response().Header().Set("Content-Type", "image/jpeg")
+	c.Response().Header().Set("Cache-Control", "public, max-age=86400")
+	c.Response().WriteHeader(http.StatusOK)
+	if err := publicart.EncodeImage(c.Response().Writer, composed, "jpeg"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (h *PublicArtHandler) Preview(c echo.Context) error {
 	// Support GET (query params) and POST (JSON body)
 	var comp publicart.Composition
@@ -212,6 +242,9 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 }
 
 func (h *PublicArtHandler) downloadImage(imageURL string) ([]byte, error) {
+	if imageURL == "" {
+		return nil, fmt.Errorf("image URL is required")
+	}
 	if data, ok, err := publicart.DecodeDataImageURL(imageURL); ok {
 		return data, err
 	}
@@ -226,7 +259,7 @@ func (h *PublicArtHandler) downloadImage(imageURL string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, echo.NewHTTPError(resp.StatusCode, "image status "+string(rune(resp.StatusCode)))
+		return nil, fmt.Errorf("image status %d", resp.StatusCode)
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, 20<<20))
 }

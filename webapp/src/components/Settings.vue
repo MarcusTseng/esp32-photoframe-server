@@ -1002,7 +1002,7 @@
                         >
                           <v-card variant="outlined" class="h-100 public-art-candidate-card">
                             <v-img
-                              :src="candidate.thumbnail_url || candidate.image_url"
+                              :src="publicArtThumbnailUrl(candidate)"
                               height="180"
                               cover
                               class="bg-grey-lighten-3"
@@ -1039,31 +1039,30 @@
                                   <v-icon size="x-small" icon="mdi-open-in-new"></v-icon>
                                 </a>
                                 <span v-else></span>
-                                <div class="d-flex ga-2">
-                                  <v-btn
-                                    size="small"
-                                    variant="tonal"
-                                    prepend-icon="mdi-crop"
-                                    :loading="publicArtComposingId === candidate.id"
-                                    @click="selectPublicArtCandidate(candidate)"
-                                  >
-                                    Preview & crop
-                                  </v-btn>
-                                  <v-btn
-                                    v-if="publicArtComposingId === candidate.id"
-                                    size="small"
-                                    color="primary"
-                                    variant="flat"
-                                    prepend-icon="mdi-check"
-                                    :loading="publicArtSelectingId === candidate.id"
-                                    :disabled="!!publicArtSelectingId"
-                                    @click="confirmPublicArtSelection"
-                                  >
-                                    Use this artwork
-                                  </v-btn>
-                                </div>
                               </div>
                             </v-card-text>
+                            <v-card-actions class="px-4 pb-4 pt-0 d-flex flex-wrap ga-2">
+                              <v-btn
+                                size="small"
+                                variant="tonal"
+                                prepend-icon="mdi-crop"
+                                :loading="publicArtComposingId === candidate.id && publicArtPreviewLoading"
+                                @click="selectPublicArtCandidate(candidate)"
+                              >
+                                Preview & crop
+                              </v-btn>
+                              <v-btn
+                                size="small"
+                                color="primary"
+                                variant="flat"
+                                prepend-icon="mdi-check"
+                                :loading="publicArtSelectingId === candidate.id"
+                                :disabled="!!publicArtSelectingId"
+                                @click="usePublicArtCandidate(candidate)"
+                              >
+                                Use this artwork
+                              </v-btn>
+                            </v-card-actions>
                           </v-card>
                         </v-col>
                       </v-row>
@@ -3432,6 +3431,17 @@ const searchPublicArt = async () => {
   }
 };
 
+const publicArtThumbnailUrl = (candidate: PublicArtCandidate) => {
+  const params = new URLSearchParams();
+  if (candidate.image_url) {
+    params.set('candidate_image_url', candidate.image_url);
+  }
+  if (candidate.thumbnail_url) {
+    params.set('candidate_thumbnail_url', candidate.thumbnail_url);
+  }
+  return `/api/public-art/thumbnail?${params.toString()}`;
+};
+
 const openComposePanel = (candidate: PublicArtCandidate) => {
   publicArtComposingId.value = candidate.id;
   publicArtComposition.scale_mode = 'cover';
@@ -3480,6 +3490,11 @@ const updatePublicArtPreview = async () => {
 const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
   openComposePanel(candidate);
   await updatePublicArtPreview();
+};
+
+const usePublicArtCandidate = async (candidate: PublicArtCandidate) => {
+  openComposePanel(candidate);
+  await confirmPublicArtSelection();
 };
 
 const confirmPublicArtSelection = async () => {

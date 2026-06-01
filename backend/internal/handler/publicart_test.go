@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -110,6 +111,32 @@ func TestPublicArtSelectRejectsMissingImageURL(t *testing.T) {
 	}
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+}
+
+func TestPublicArtThumbnailFallsBackToThumbnailDataURL(t *testing.T) {
+	e := echo.New()
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "cloudflare challenge", http.StatusForbidden)
+	}))
+	defer imageServer.Close()
+
+	h := NewPublicArtHandler(&fakePublicArtSearchService{})
+	thumbnail := "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+	req := httptest.NewRequest(http.MethodGet, "/api/public-art/thumbnail?candidate_image_url="+url.QueryEscape(imageServer.URL)+"&candidate_thumbnail_url="+url.QueryEscape(thumbnail), nil)
+	rec := httptest.NewRecorder()
+
+	if err := h.Thumbnail(e.NewContext(req, rec)); err != nil {
+		t.Fatalf("Thumbnail returned error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Fatalf("Content-Type = %q, want image/jpeg", got)
+	}
+	if rec.Body.Len() == 0 {
+		t.Fatal("thumbnail response body is empty")
 	}
 }
 

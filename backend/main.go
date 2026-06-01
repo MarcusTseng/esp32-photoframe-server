@@ -341,6 +341,7 @@ func main() {
 	protectedApi.POST("/public-art/search", pah.Search)
 	protectedApi.POST("/public-art/select", pah.Select)
 	protectedApi.DELETE("/public-art/select", pah.ClearSelection)
+	protectedApi.GET("/public-art/thumbnail", pah.Thumbnail)
 	protectedApi.POST("/public-art/preview", pah.Preview)
 
 	// Google Picker (Protected)
