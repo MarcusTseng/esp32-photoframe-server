@@ -1016,22 +1016,134 @@
                                   <v-icon size="x-small" icon="mdi-open-in-new"></v-icon>
                                 </a>
                                 <span v-else></span>
-                                <v-btn
-                                  size="small"
-                                  color="primary"
-                                  variant="tonal"
-                                  prepend-icon="mdi-image-check"
-                                  :loading="publicArtSelectingId === candidate.id"
-                                  :disabled="!!publicArtSelectingId"
-                                  @click="selectPublicArtCandidate(candidate)"
-                                >
-                                  Display on frame
-                                </v-btn>
+                                <div class="d-flex ga-2">
+                                  <v-btn
+                                    size="small"
+                                    variant="tonal"
+                                    prepend-icon="mdi-crop"
+                                    :loading="publicArtComposingId === candidate.id"
+                                    @click="selectPublicArtCandidate(candidate)"
+                                  >
+                                    Compose
+                                  </v-btn>
+                                  <v-btn
+                                    v-if="publicArtComposingId === candidate.id"
+                                    size="small"
+                                    color="primary"
+                                    variant="flat"
+                                    prepend-icon="mdi-check"
+                                    :loading="publicArtSelectingId === candidate.id"
+                                    :disabled="!!publicArtSelectingId"
+                                    @click="confirmPublicArtSelection"
+                                  >
+                                    Confirm
+                                  </v-btn>
+                                </div>
                               </div>
                             </v-card-text>
                           </v-card>
                         </v-col>
                       </v-row>
+
+                      <!-- Compose Panel (overlay when composing) -->
+                      <v-expand-transition>
+                        <div v-if="publicArtComposingId" class="mt-4">
+                          <v-divider class="mb-4" />
+                          <div class="text-subtitle-1 font-weight-bold mb-2">Compose: {{ publicArtCandidates.find(c => c.id === publicArtComposingId)?.title }}</div>
+                          <v-row>
+                            <v-col cols="12" md="5">
+                              <v-card variant="outlined" class="pa-2" style="background:#f5f5f5">
+                                <div v-if="publicArtPreviewLoading" class="d-flex justify-center align-center" style="height:300px">
+                                  <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                </div>
+                                <img
+                                  v-if="publicArtPreviewUrl && !publicArtPreviewError"
+                                  :src="publicArtPreviewUrl"
+                                  style="width:100%;max-height:300px;object-fit:contain;display:block"
+                                />
+                                <v-alert v-if="publicArtPreviewError" type="error" variant="tonal" density="compact">
+                                  {{ publicArtPreviewError }}
+                                </v-alert>
+                              </v-card>
+                            </v-col>
+                            <v-col cols="12" md="7">
+                              <v-select
+                                v-model="publicArtComposition.scale_mode"
+                                label="Scale mode"
+                                :items="[{title:'Cover (crop to fill)',value:'cover'},{title:'Fit (letterbox)',value:'fit'}]"
+                                variant="outlined"
+                                density="compact"
+                                class="mb-2"
+                                @update:model-value="updatePublicArtPreview"
+                              ></v-select>
+                              <v-slider
+                                v-model="publicArtComposition.zoom"
+                                label="Zoom"
+                                :min="0.5"
+                                :max="5"
+                                :step="0.1"
+                                thumb-label
+                                class="mb-2"
+                                @end="updatePublicArtPreview"
+                              >
+                                <template #append>
+                                  <span class="text-caption">{{ publicArtComposition.zoom.toFixed(1) }}×</span>
+                                </template>
+                              </v-slider>
+                              <v-row dense>
+                                <v-col cols="6">
+                                  <v-text-field
+                                    v-model.number="publicArtComposition.pan_x"
+                                    label="Pan X"
+                                    type="number"
+                                    variant="outlined"
+                                    density="compact"
+                                    step="0.05"
+                                    @end="updatePublicArtPreview"
+                                  ></v-text-field>
+                                </v-col>
+                                <v-col cols="6">
+                                  <v-text-field
+                                    v-model.number="publicArtComposition.pan_y"
+                                    label="Pan Y"
+                                    type="number"
+                                    variant="outlined"
+                                    density="compact"
+                                    step="0.05"
+                                    @end="updatePublicArtPreview"
+                                  ></v-text-field>
+                                </v-col>
+                              </v-row>
+                              <v-text-field
+                                v-model="publicArtComposition.background_color"
+                                label="Background color"
+                                variant="outlined"
+                                density="compact"
+                                class="mb-2"
+                                @end="updatePublicArtPreview"
+                              ></v-text-field>
+                              <div class="d-flex ga-2 mt-2">
+                                <v-btn
+                                  variant="tonal"
+                                  prepend-icon="mdi-close"
+                                  @click="closeComposePanel"
+                                >
+                                  Cancel
+                                </v-btn>
+                                <v-btn
+                                  color="primary"
+                                  prepend-icon="mdi-check"
+                                  :loading="!!publicArtSelectingId"
+                                  :disabled="!!publicArtSelectingId"
+                                  @click="confirmPublicArtSelection"
+                                >
+                                  Confirm & Save
+                                </v-btn>
+                              </div>
+                            </v-col>
+                          </v-row>
+                        </div>
+                      </v-expand-transition>
                     </v-card-text>
                   </v-card>
 
@@ -3137,12 +3249,31 @@ type PublicArtCandidate = {
   height?: number;
 };
 
+type PublicArtComposition = {
+  scale_mode: 'cover' | 'fit' | 'custom';
+  zoom: number;
+  pan_x: number;
+  pan_y: number;
+  background_color: string;
+};
+
 const publicArtCandidates = ref<PublicArtCandidate[]>([]);
 const publicArtSearching = ref(false);
 const publicArtSearched = ref(false);
 const publicArtSearchError = ref('');
 const publicArtSelectingId = ref('');
 const publicArtClearing = ref(false);
+const publicArtComposingId = ref('');
+const publicArtPreviewUrl = ref('');
+const publicArtComposition = reactive<PublicArtComposition>({
+  scale_mode: 'cover',
+  zoom: 1.0,
+  pan_x: 0,
+  pan_y: 0,
+  background_color: '#ffffff',
+});
+const publicArtPreviewLoading = ref(false);
+const publicArtPreviewError = ref('');
 
 const isPublicArtCandidateLargeEnough = (candidate: PublicArtCandidate) => {
   const longEdge = Math.max(candidate.width || 0, candidate.height || 0);
@@ -3249,13 +3380,64 @@ const searchPublicArt = async () => {
   }
 };
 
-const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
-  publicArtSelectingId.value = candidate.id;
+const openComposePanel = (candidate: PublicArtCandidate) => {
+  publicArtComposingId.value = candidate.id;
+  publicArtComposition.scale_mode = 'cover';
+  publicArtComposition.zoom = 1.0;
+  publicArtComposition.pan_x = 0;
+  publicArtComposition.pan_y = 0;
+  publicArtComposition.background_color = '#ffffff';
+  publicArtPreviewUrl.value = candidate.image_url;
+};
+
+const closeComposePanel = () => {
+  publicArtComposingId.value = '';
+  publicArtPreviewUrl.value = '';
+  publicArtPreviewError.value = '';
+};
+
+const updatePublicArtPreview = async () => {
+  if (!publicArtPreviewUrl.value) return;
+  publicArtPreviewLoading.value = true;
+  publicArtPreviewError.value = '';
   try {
-    await api.post('/public-art/select', { candidate });
+    const params = new URLSearchParams({
+      candidate_image_url: publicArtPreviewUrl.value,
+      scale_mode: publicArtComposition.scale_mode,
+      zoom: String(publicArtComposition.zoom),
+      pan_x: String(publicArtComposition.pan_x),
+      pan_y: String(publicArtComposition.pan_y),
+      background_color: publicArtComposition.background_color,
+      target_width: '400',
+      target_height: '300',
+    });
+    publicArtPreviewUrl.value = `/api/public-art/preview?${params.toString()}`;
+  } catch (e: any) {
+    publicArtPreviewError.value = e.message || 'Failed to load preview';
+  } finally {
+    publicArtPreviewLoading.value = false;
+  }
+};
+
+const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
+  openComposePanel(candidate);
+  await updatePublicArtPreview();
+};
+
+const confirmPublicArtSelection = async () => {
+  if (!publicArtComposingId.value) return;
+  const candidate = publicArtCandidates.value.find(c => c.id === publicArtComposingId.value);
+  if (!candidate) return;
+  publicArtSelectingId.value = publicArtComposingId.value;
+  try {
+    await api.post('/public-art/select', {
+      candidate,
+      composition: { ...publicArtComposition },
+    });
     showMessage(
       'Public art selection saved. Frames using /image/public_art will show this artwork.'
     );
+    closeComposePanel();
   } catch (e: any) {
     showMessage(
       'Failed to select artwork: ' + (e.response?.data?.error || e.message),

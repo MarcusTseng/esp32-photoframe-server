@@ -5,6 +5,7 @@ import (
 	"image"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/publicart"
 	"github.com/labstack/echo/v4"
@@ -45,6 +46,18 @@ type PublicArtPreviewRequest struct {
 	Composition publicart.Composition `json:"composition"`
 	TargetWidth  int                  `json:"target_width"`
 	TargetHeight int                  `json:"target_height"`
+}
+
+// PreviewImageRequest is used for GET /public-art/preview with query params.
+type PreviewImageRequest struct {
+	CandidateImageURL string  `query:"candidate_image_url"`
+	ScaleMode         string  `query:"scale_mode"`
+	Zoom              float64 `query:"zoom"`
+	PanX              float64 `query:"pan_x"`
+	PanY              float64 `query:"pan_y"`
+	BackgroundColor   string  `query:"background_color"`
+	TargetWidth       int     `query:"target_width"`
+	TargetHeight      int     `query:"target_height"`
 }
 
 func (h *PublicArtHandler) Search(c echo.Context) error {
@@ -101,32 +114,78 @@ func (h *PublicArtHandler) ClearSelection(c echo.Context) error {
 }
 
 func (h *PublicArtHandler) Preview(c echo.Context) error {
-	var req PublicArtPreviewRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-	}
-	if req.Candidate.ImageURL == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate image_url is required"})
-	}
-	comp := req.Composition
-	if comp.ScaleMode == "" {
-		comp = publicart.DefaultComposition()
-	}
-	if req.TargetWidth <= 0 {
-		req.TargetWidth = 800
-	}
-	if req.TargetHeight <= 0 {
-		req.TargetHeight = 600
-	}
-	// Clamp preview size for performance
-	if req.TargetWidth > 400 {
-		req.TargetWidth = 400
-	}
-	if req.TargetHeight > 400 {
-		req.TargetHeight = 400
+	// Support GET (query params) and POST (JSON body)
+	var comp publicart.Composition
+	var imageURL string
+	var targetW, targetH int
+
+	if c.Request().Method == http.MethodGet {
+		// GET /public-art/preview?candidate_image_url=...&scale_mode=cover&...
+		imageURL = c.QueryParam("candidate_image_url")
+		if imageURL == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate_image_url is required"})
+		}
+		comp.ScaleMode = c.QueryParam("scale_mode")
+		if comp.ScaleMode == "" {
+			comp = publicart.DefaultComposition()
+		}
+		if v := c.QueryParam("zoom"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				comp.Zoom = f
+			}
+		}
+		if v := c.QueryParam("pan_x"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				comp.PanX = f
+			}
+		}
+		if v := c.QueryParam("pan_y"); v != "" {
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				comp.PanY = f
+			}
+		}
+		comp.BackgroundColor = c.QueryParam("background_color")
+		if v := c.QueryParam("target_width"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				targetW = i
+			}
+		}
+		if v := c.QueryParam("target_height"); v != "" {
+			if i, err := strconv.Atoi(v); err == nil {
+				targetH = i
+			}
+		}
+	} else {
+		// POST with JSON body
+		var req PublicArtPreviewRequest
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		}
+		imageURL = req.Candidate.ImageURL
+		if imageURL == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate image_url is required"})
+		}
+		comp = req.Composition
+		if comp.ScaleMode == "" {
+			comp = publicart.DefaultComposition()
+		}
+		targetW = req.TargetWidth
+		targetH = req.TargetHeight
 	}
 
-	data, err := h.downloadImage(req.Candidate.ImageURL)
+	// Clamp preview size for performance
+	if targetW <= 0 {
+		targetW = 400
+	} else if targetW > 400 {
+		targetW = 400
+	}
+	if targetH <= 0 {
+		targetH = 300
+	} else if targetH > 400 {
+		targetH = 400
+	}
+
+	data, err := h.downloadImage(imageURL)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch image: " + err.Error()})
 	}
@@ -134,7 +193,7 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to decode image: " + err.Error()})
 	}
-	composed := publicart.ComposeImage(img, comp, req.TargetWidth, req.TargetHeight)
+	composed := publicart.ComposeImage(img, comp, targetW, targetH)
 
 	c.Response().Header().Set("Content-Type", "image/jpeg")
 	c.Response().WriteHeader(http.StatusOK)
