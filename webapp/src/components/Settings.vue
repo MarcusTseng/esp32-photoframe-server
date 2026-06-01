@@ -928,14 +928,24 @@
                           Browse candidates before assigning the public art source to a frame.
                         </div>
                       </div>
-                      <v-btn
-                        color="primary"
-                        prepend-icon="mdi-magnify"
-                        :loading="publicArtSearching"
-                        @click="searchPublicArt"
-                      >
-                        Search Public Art
-                      </v-btn>
+                      <div class="d-flex ga-2 flex-wrap">
+                        <v-btn
+                          variant="tonal"
+                          prepend-icon="mdi-close-circle-outline"
+                          :loading="publicArtClearing"
+                          @click="clearPublicArtSelection"
+                        >
+                          Clear Selection
+                        </v-btn>
+                        <v-btn
+                          color="primary"
+                          prepend-icon="mdi-magnify"
+                          :loading="publicArtSearching"
+                          @click="searchPublicArt"
+                        >
+                          Search Public Art
+                        </v-btn>
+                      </div>
                     </v-card-title>
 
                     <v-card-text>
@@ -994,16 +1004,30 @@
                                   {{ candidate.width || '?' }}×{{ candidate.height || '?' }}
                                 </v-chip>
                               </div>
-                              <a
-                                v-if="candidate.source_url"
-                                :href="candidate.source_url"
-                                target="_blank"
-                                rel="noopener"
-                                class="text-primary text-caption text-decoration-none"
-                              >
-                                Source
-                                <v-icon size="x-small" icon="mdi-open-in-new"></v-icon>
-                              </a>
+                              <div class="d-flex align-center justify-space-between ga-2">
+                                <a
+                                  v-if="candidate.source_url"
+                                  :href="candidate.source_url"
+                                  target="_blank"
+                                  rel="noopener"
+                                  class="text-primary text-caption text-decoration-none"
+                                >
+                                  Source
+                                  <v-icon size="x-small" icon="mdi-open-in-new"></v-icon>
+                                </a>
+                                <span v-else></span>
+                                <v-btn
+                                  size="small"
+                                  color="primary"
+                                  variant="tonal"
+                                  prepend-icon="mdi-image-check"
+                                  :loading="publicArtSelectingId === candidate.id"
+                                  :disabled="!!publicArtSelectingId"
+                                  @click="selectPublicArtCandidate(candidate)"
+                                >
+                                  Display on frame
+                                </v-btn>
+                              </div>
                             </v-card-text>
                           </v-card>
                         </v-col>
@@ -3117,6 +3141,8 @@ const publicArtCandidates = ref<PublicArtCandidate[]>([]);
 const publicArtSearching = ref(false);
 const publicArtSearched = ref(false);
 const publicArtSearchError = ref('');
+const publicArtSelectingId = ref('');
+const publicArtClearing = ref(false);
 
 const isPublicArtCandidateLargeEnough = (candidate: PublicArtCandidate) => {
   const longEdge = Math.max(candidate.width || 0, candidate.height || 0);
@@ -3220,6 +3246,41 @@ const searchPublicArt = async () => {
       e.response?.data?.error || e.message || 'Failed to search public art';
   } finally {
     publicArtSearching.value = false;
+  }
+};
+
+const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
+  publicArtSelectingId.value = candidate.id;
+  try {
+    await api.post('/public-art/select', { candidate });
+    showMessage(
+      'Public art selection saved. Frames using /image/public_art will show this artwork.'
+    );
+  } catch (e: any) {
+    showMessage(
+      'Failed to select artwork: ' + (e.response?.data?.error || e.message),
+      true
+    );
+  } finally {
+    publicArtSelectingId.value = '';
+  }
+};
+
+const clearPublicArtSelection = async () => {
+  publicArtClearing.value = true;
+  try {
+    await api.delete('/public-art/select');
+    showMessage(
+      'Public art selection cleared. Frames will use the default search query again.'
+    );
+  } catch (e: any) {
+    showMessage(
+      'Failed to clear artwork selection: ' +
+        (e.response?.data?.error || e.message),
+      true
+    );
+  } finally {
+    publicArtClearing.value = false;
   }
 };
 

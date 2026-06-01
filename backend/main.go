@@ -183,6 +183,8 @@ func main() {
 	publicArtService := publicart.NewService(publicart.ServiceOptions{
 		Provider:       publicart.NewAICProvider("", nil),
 		ConfigProvider: publicart.NewSettingsConfigProvider(settingsService),
+		Settings:       settingsService,
+		CacheDir:       filepath.Join(dataDir, "public_art_cache"),
 	})
 
 	// Image-source registry: every image source — synthetic and library —
@@ -253,7 +255,7 @@ func main() {
 		DB:             database,
 		DataDir:        dataDir,
 	})
-	pah := handler.NewPublicArtHandler(publicArtService)
+	pah := handler.NewPublicArtHandler(publicArtService, settingsService)
 	ch := handler.NewCalendarHandler(googleCalendarClient, calendarClient)
 	ah := handler.NewAuthHandler(authService)
 
@@ -337,6 +339,8 @@ func main() {
 
 	// Public Art
 	protectedApi.POST("/public-art/search", pah.Search)
+	protectedApi.POST("/public-art/select", pah.Select)
+	protectedApi.DELETE("/public-art/select", pah.ClearSelection)
 
 	// Google Picker (Protected)
 	protectedApi.GET("/google/picker/session", googleHandler.CreatePickerSession)

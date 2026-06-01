@@ -1,11 +1,17 @@
 package publicart
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	_ "image/gif"
@@ -24,6 +30,8 @@ type ServiceOptions struct {
 	HTTPClient     *http.Client
 	Config         Config
 	ConfigProvider ConfigProvider
+	Settings       SettingsGetter
+	CacheDir       string
 }
 
 type Service struct {
@@ -31,6 +39,8 @@ type Service struct {
 	httpClient     *http.Client
 	config         Config
 	configProvider ConfigProvider
+	settings       SettingsGetter
+	cacheDir       string
 }
 
 func NewService(opts ServiceOptions) *Service {
@@ -47,10 +57,22 @@ func NewService(opts ServiceOptions) *Service {
 		httpClient:     client,
 		config:         normalizeConfig(cfg),
 		configProvider: opts.ConfigProvider,
+		settings:       opts.Settings,
+		cacheDir:       opts.CacheDir,
 	}
 }
 
 func (s *Service) FetchImage() (image.Image, Candidate, error) {
+	if selected, ok, err := LoadSelectedCandidate(s.settings); err != nil {
+		return nil, Candidate{}, err
+	} else if ok {
+		img, err := s.fetchCandidateImage(selected)
+		if err != nil {
+			return nil, Candidate{}, err
+		}
+		return img, selected, nil
+	}
+
 	if s.provider == nil {
 		return nil, Candidate{}, errors.New("publicart: provider is required")
 	}
@@ -66,7 +88,7 @@ func (s *Service) FetchImage() (image.Image, Candidate, error) {
 		return nil, Candidate{}, errors.New("publicart: no image candidates found")
 	}
 	selected := ranked[0]
-	img, err := s.downloadImage(selected.ImageURL)
+	img, err := s.fetchCandidateImage(selected)
 	if err != nil {
 		return nil, Candidate{}, err
 	}
@@ -105,6 +127,18 @@ func (s *Service) currentConfig() (Config, error) {
 }
 
 func (s *Service) downloadImage(imageURL string) (image.Image, error) {
+	data, err := s.downloadImageBytes(imageURL)
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("publicart: decode image: %w", err)
+	}
+	return img, nil
+}
+
+func (s *Service) downloadImageBytes(imageURL string) ([]byte, error) {
 	if imageURL == "" {
 		return nil, errors.New("publicart: image URL is required")
 	}
@@ -121,10 +155,90 @@ func (s *Service) downloadImage(imageURL string) (image.Image, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("publicart: image status %d", resp.StatusCode)
 	}
-	limited := io.LimitReader(resp.Body, maxImageDownloadBytes)
-	img, _, err := image.Decode(limited)
+	return io.ReadAll(io.LimitReader(resp.Body, maxImageDownloadBytes))
+}
+
+func (s *Service) fetchCandidateImage(candidate Candidate) (image.Image, error) {
+	if s.cacheDir != "" {
+		if data, ok := s.readCachedImage(candidate); ok {
+			if img, _, err := image.Decode(bytes.NewReader(data)); err == nil {
+				return img, nil
+			}
+		}
+	}
+
+	data, err := s.downloadImageBytes(candidate.ImageURL)
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("publicart: decode image: %w", err)
 	}
+	if s.cacheDir != "" {
+		_ = s.writeCachedImage(candidate, data)
+	}
 	return img, nil
+}
+
+func (s *Service) readCachedImage(candidate Candidate) ([]byte, bool) {
+	path := s.cachePath(candidate)
+	if path == "" {
+		return nil, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
+func (s *Service) writeCachedImage(candidate Candidate, data []byte) error {
+	path := s.cachePath(candidate)
+	if path == "" {
+		return nil
+	}
+	if err := os.MkdirAll(s.cacheDir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(s.cacheDir, ".public-art-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	s.cleanupOtherCacheFiles(filepath.Base(path))
+	return nil
+}
+
+func (s *Service) cleanupOtherCacheFiles(keep string) {
+	entries, err := os.ReadDir(s.cacheDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == keep || !strings.HasSuffix(name, ".img") {
+			continue
+		}
+		_ = os.Remove(filepath.Join(s.cacheDir, name))
+	}
+}
+
+func (s *Service) cachePath(candidate Candidate) string {
+	if s.cacheDir == "" || candidate.ImageURL == "" {
+		return ""
+	}
+	h := sha256.Sum256([]byte(candidate.Provider + "\x00" + candidate.ID + "\x00" + candidate.ImageURL))
+	return filepath.Join(s.cacheDir, hex.EncodeToString(h[:])+".img")
 }

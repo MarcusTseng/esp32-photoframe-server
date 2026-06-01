@@ -11,6 +11,25 @@ func (g fakeSettingsGetter) Get(key string) (string, error) {
 	return g.value, g.err
 }
 
+type fakeSettingsStore struct {
+	values map[string]string
+}
+
+func (s *fakeSettingsStore) Get(key string) (string, error) {
+	if s.values == nil {
+		return "", nil
+	}
+	return s.values[key], nil
+}
+
+func (s *fakeSettingsStore) Set(key string, value string) error {
+	if s.values == nil {
+		s.values = map[string]string{}
+	}
+	s.values[key] = value
+	return nil
+}
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.Query != "art" {
@@ -78,5 +97,37 @@ func TestRankCandidatesPrefersResolutionThenTitle(t *testing.T) {
 	}
 	if candidates[0].ID != "low" {
 		t.Fatalf("RankCandidates mutated input slice")
+	}
+}
+
+func TestSelectedCandidateSettingsHelpers(t *testing.T) {
+	store := &fakeSettingsStore{}
+	if _, ok, err := LoadSelectedCandidate(store); err != nil || ok {
+		t.Fatalf("LoadSelectedCandidate empty = ok %v err %v, want false nil", ok, err)
+	}
+
+	candidate := Candidate{Provider: ProviderAIC, ID: "aic:1", Title: "Water Lilies", ImageURL: "https://example.test/image.jpg"}
+	if err := SaveSelectedCandidate(store, candidate); err != nil {
+		t.Fatalf("SaveSelectedCandidate returned error: %v", err)
+	}
+	loaded, ok, err := LoadSelectedCandidate(store)
+	if err != nil {
+		t.Fatalf("LoadSelectedCandidate returned error: %v", err)
+	}
+	if !ok || loaded.ID != candidate.ID || loaded.ImageURL != candidate.ImageURL {
+		t.Fatalf("loaded = %#v ok=%v, want %#v true", loaded, ok, candidate)
+	}
+	if err := ClearSelectedCandidate(store); err != nil {
+		t.Fatalf("ClearSelectedCandidate returned error: %v", err)
+	}
+	if got := store.values[SettingsKeySelectedCandidate]; got != "" {
+		t.Fatalf("cleared value = %q, want empty", got)
+	}
+}
+
+func TestSaveSelectedCandidateRejectsMissingImageURL(t *testing.T) {
+	store := &fakeSettingsStore{}
+	if err := SaveSelectedCandidate(store, Candidate{Provider: ProviderAIC, ID: "aic:1"}); err == nil {
+		t.Fatal("SaveSelectedCandidate returned nil error for missing image_url")
 	}
 }
