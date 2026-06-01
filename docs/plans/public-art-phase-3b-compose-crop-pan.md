@@ -1,5 +1,7 @@
 # Phase 3B — Compose / Crop / Pan UI + Backend Composition
 
+> **Status update 2026-06-01:** Core compose/crop work landed, but Marcus's actual Home Assistant add-on UI still does not show search-result previews or the `Preview & crop` / `Use this artwork` buttons. Continue with `docs/plans/public-art-phase-4-stabilize-ui-and-providers.md` before adding more compose/provider features.
+
 ## Goal
 
 Allow users to manually compose a selected artwork for the target frame before saving: cover / fit / custom scale modes, zoom, pan, background color. UI preview must match backend-served output exactly.
