@@ -296,8 +296,9 @@ func main() {
 	// Let's protect main image endpoint.
 	e.GET("/served-image-thumbnail/:id", ih.GetServedImageThumbnail)
 
-	// Device Config Sync (Protected - device token or session auth)
-	e.POST("/api/device-config/sync", ih.SyncDeviceConfig, authMiddleware)
+	// Public Art thumbnail — only fetches from public external URLs (Art Institute of Chicago IIIFF);
+	// no auth needed and no database writes.
+	e.GET("/api/public-art/thumbnail", pah.Thumbnail)
 
 	// Protected API Routes
 	// 1. Protected API Group
@@ -341,7 +342,6 @@ func main() {
 	protectedApi.POST("/public-art/search", pah.Search)
 	protectedApi.POST("/public-art/select", pah.Select)
 	protectedApi.DELETE("/public-art/select", pah.ClearSelection)
-	protectedApi.GET("/public-art/thumbnail", pah.Thumbnail)
 	protectedApi.POST("/public-art/preview", pah.Preview)
 
 	// Google Picker (Protected)
