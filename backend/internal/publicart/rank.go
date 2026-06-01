@@ -29,5 +29,21 @@ func candidateScore(c Candidate, cfg Config) int {
 	} else if cfg.MinImageLongEdge > 0 && longEdge >= cfg.MinImageLongEdge {
 		score += 25
 	}
+	if candidateMatchesOrientation(c, cfg.Orientation) {
+		score += 75
+	}
 	return score
+}
+
+func candidateMatchesOrientation(c Candidate, orientation string) bool {
+	if orientation == "" || c.Width <= 0 || c.Height <= 0 || c.Width == c.Height {
+		return false
+	}
+	if orientation == "landscape" {
+		return c.Width > c.Height
+	}
+	if orientation == "portrait" {
+		return c.Height > c.Width
+	}
+	return false
 }

@@ -33,6 +33,7 @@ type PublicArtSearchRequest struct {
 	Query                  string `json:"query"`
 	MinImageLongEdge       int    `json:"min_image_long_edge"`
 	PreferredImageLongEdge int    `json:"preferred_image_long_edge"`
+	Orientation            string `json:"orientation"`
 	Limit                  int    `json:"limit"`
 }
 
@@ -77,6 +78,7 @@ func (h *PublicArtHandler) Search(c echo.Context) error {
 		Query:                  req.Query,
 		MinImageLongEdge:       req.MinImageLongEdge,
 		PreferredImageLongEdge: req.PreferredImageLongEdge,
+		Orientation:            req.Orientation,
 	}, limit)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})

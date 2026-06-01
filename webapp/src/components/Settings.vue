@@ -884,16 +884,30 @@
                     class="mb-4"
                   ></v-text-field>
 
-                  <v-text-field
-                    v-model="form.public_art_query"
-                    label="Default search query"
-                    placeholder="monet, hokusai, landscape..."
-                    variant="outlined"
-                    density="compact"
-                    class="mb-4"
-                    hint="/image/public_art fetches the best-ranked AIC result for this query."
-                    persistent-hint
-                  ></v-text-field>
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-text-field
+                        v-model="form.public_art_query"
+                        label="Default search query"
+                        placeholder="monet, hokusai, landscape..."
+                        variant="outlined"
+                        density="compact"
+                        hint="/image/public_art fetches the best-ranked AIC result for this query."
+                        persistent-hint
+                      ></v-text-field>
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-select
+                        v-model="form.public_art_orientation"
+                        label="Search orientation"
+                        :items="publicArtOrientationOptions"
+                        variant="outlined"
+                        density="compact"
+                        hint="Auto uses the frame orientation setting above."
+                        persistent-hint
+                      ></v-select>
+                    </v-col>
+                  </v-row>
 
                   <v-row>
                     <v-col cols="12" md="6">
@@ -949,6 +963,15 @@
                     </v-card-title>
 
                     <v-card-text>
+                      <v-alert
+                        type="info"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                      >
+                        To pick an artwork: click <strong>Preview & crop</strong> on a result, adjust the composition if needed, then click <strong>Use this artwork</strong>. Saving public art settings only saves the default query/ranking preferences.
+                      </v-alert>
+
                       <v-alert
                         v-if="publicArtSearchError"
                         type="error"
@@ -1024,7 +1047,7 @@
                                     :loading="publicArtComposingId === candidate.id"
                                     @click="selectPublicArtCandidate(candidate)"
                                   >
-                                    Compose
+                                    Preview & crop
                                   </v-btn>
                                   <v-btn
                                     v-if="publicArtComposingId === candidate.id"
@@ -1036,7 +1059,7 @@
                                     :disabled="!!publicArtSelectingId"
                                     @click="confirmPublicArtSelection"
                                   >
-                                    Confirm
+                                    Use this artwork
                                   </v-btn>
                                 </div>
                               </div>
@@ -3319,6 +3342,7 @@ const form = reactive({
   openai_api_key: '',
   google_api_key: '',
   public_art_query: 'art',
+  public_art_orientation: 'auto',
   public_art_min_image_long_edge: 1600,
   public_art_preferred_image_long_edge: 2000,
   device_host: '', // Keep for backward compatibility/display? Or remove. Remove from form, keep in store maybe?
@@ -3349,6 +3373,13 @@ const autoSyncIntervalOptions = [
   { title: 'Every 24 hours', value: 1440 },
 ];
 
+const publicArtOrientationOptions = [
+  { title: 'Auto (use frame orientation)', value: 'auto' },
+  { title: 'Landscape', value: 'landscape' },
+  { title: 'Portrait', value: 'portrait' },
+  { title: 'Any orientation', value: 'any' },
+];
+
 // Helper to show snackbar
 const showMessage = (msg: string, isError = false) => {
   snackbar.message = msg;
@@ -3356,9 +3387,27 @@ const showMessage = (msg: string, isError = false) => {
   snackbar.show = true;
 };
 
+const resolvePublicArtOrientation = () => {
+  if (form.public_art_orientation === 'landscape' || form.public_art_orientation === 'portrait') {
+    return form.public_art_orientation;
+  }
+  if (form.public_art_orientation === 'any') {
+    return '';
+  }
+  return form.Orientation === 'portrait' ? 'portrait' : 'landscape';
+};
+
+const publicArtPreviewTarget = () => {
+  const orientation = resolvePublicArtOrientation();
+  return orientation === 'portrait'
+    ? { width: '300', height: '400' }
+    : { width: '400', height: '300' };
+};
+
 const publicArtConfigFromForm = () => ({
   provider: 'aic',
   query: form.public_art_query || 'art',
+  orientation: resolvePublicArtOrientation(),
   min_image_long_edge: Number(form.public_art_min_image_long_edge) || 1600,
   preferred_image_long_edge:
     Number(form.public_art_preferred_image_long_edge) || 2000,
@@ -3408,6 +3457,7 @@ const updatePublicArtPreview = async () => {
   publicArtPreviewLoading.value = true;
   publicArtPreviewError.value = '';
   try {
+    const target = publicArtPreviewTarget();
     const params = new URLSearchParams({
       candidate_image_url: publicArtPreviewSourceUrl.value,
       candidate_thumbnail_url: publicArtPreviewThumbnailUrl.value,
@@ -3416,8 +3466,8 @@ const updatePublicArtPreview = async () => {
       pan_x: String(publicArtComposition.pan_x),
       pan_y: String(publicArtComposition.pan_y),
       background_color: publicArtComposition.background_color,
-      target_width: '400',
-      target_height: '300',
+      target_width: target.width,
+      target_height: target.height,
     });
     publicArtPreviewUrl.value = `/api/public-art/preview?${params.toString()}`;
   } catch (e: any) {
@@ -3479,6 +3529,7 @@ const applyPublicArtConfig = (raw: string | undefined) => {
   try {
     const cfg = JSON.parse(raw);
     form.public_art_query = cfg.query || 'art';
+    form.public_art_orientation = cfg.orientation === 'landscape' || cfg.orientation === 'portrait' ? cfg.orientation : 'auto';
     form.public_art_min_image_long_edge = cfg.min_image_long_edge || 1600;
     form.public_art_preferred_image_long_edge =
       cfg.preferred_image_long_edge || 2000;

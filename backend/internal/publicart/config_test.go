@@ -100,6 +100,23 @@ func TestRankCandidatesPrefersResolutionThenTitle(t *testing.T) {
 	}
 }
 
+func TestRankCandidatesPrefersRequestedOrientation(t *testing.T) {
+	candidates := []Candidate{
+		{ID: "portrait", Title: "Portrait", ImageURL: "https://example.test/p.jpg", Width: 1200, Height: 2000},
+		{ID: "landscape", Title: "Landscape", ImageURL: "https://example.test/l.jpg", Width: 2000, Height: 1200},
+	}
+
+	ranked := RankCandidates(candidates, Config{Orientation: "portrait", MinImageLongEdge: 1000, PreferredImageLongEdge: 1000})
+	if ranked[0].ID != "portrait" {
+		t.Fatalf("top portrait-ranked candidate = %q, want portrait; ranked=%#v", ranked[0].ID, ranked)
+	}
+
+	ranked = RankCandidates(candidates, Config{Orientation: "landscape", MinImageLongEdge: 1000, PreferredImageLongEdge: 1000})
+	if ranked[0].ID != "landscape" {
+		t.Fatalf("top landscape-ranked candidate = %q, want landscape; ranked=%#v", ranked[0].ID, ranked)
+	}
+}
+
 func TestSelectedArtworkSettingsHelpers(t *testing.T) {
 	store := &fakeSettingsStore{}
 	if _, ok, err := LoadSelectedArtwork(store); err != nil || ok {

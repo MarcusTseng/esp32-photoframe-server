@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	SettingsKeyConfig            = "public_art_config"
-	SettingsKeySelectedArtwork   = "public_art_selected_candidate" // intentionally the old key for backward compat
+	SettingsKeyConfig          = "public_art_config"
+	SettingsKeySelectedArtwork = "public_art_selected_candidate" // intentionally the old key for backward compat
 )
 
 type Config struct {
@@ -15,6 +15,7 @@ type Config struct {
 	Query                  string `json:"query"`
 	MinImageLongEdge       int    `json:"min_image_long_edge"`
 	PreferredImageLongEdge int    `json:"preferred_image_long_edge"`
+	Orientation            string `json:"orientation,omitempty"`
 }
 
 type ConfigProvider interface {
@@ -79,6 +80,9 @@ func normalizeConfig(cfg Config) Config {
 	}
 	if cfg.PreferredImageLongEdge <= 0 {
 		cfg.PreferredImageLongEdge = defaults.PreferredImageLongEdge
+	}
+	if cfg.Orientation != "landscape" && cfg.Orientation != "portrait" {
+		cfg.Orientation = ""
 	}
 	return cfg
 }

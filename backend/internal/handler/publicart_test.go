@@ -45,7 +45,7 @@ func TestPublicArtSearchReturnsRankedCandidates(t *testing.T) {
 	e := echo.New()
 	svc := &fakePublicArtSearchService{}
 	h := NewPublicArtHandler(svc)
-	req := httptest.NewRequest(http.MethodPost, "/api/public-art/search", strings.NewReader(`{"query":"monet","limit":5}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/public-art/search", strings.NewReader(`{"query":"monet","limit":5,"orientation":"portrait"}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 
@@ -57,6 +57,9 @@ func TestPublicArtSearchReturnsRankedCandidates(t *testing.T) {
 	}
 	if svc.cfg.Query != "monet" {
 		t.Fatalf("query = %q, want monet", svc.cfg.Query)
+	}
+	if svc.cfg.Orientation != "portrait" {
+		t.Fatalf("orientation = %q, want portrait", svc.cfg.Orientation)
 	}
 	if svc.limit != 5 {
 		t.Fatalf("limit = %d, want 5", svc.limit)
