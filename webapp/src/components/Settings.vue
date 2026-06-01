@@ -1663,6 +1663,20 @@
                               class="mb-2 ml-8"
                               :disabled="!deviceConfig.auto_rotate"
                             ></v-select>
+                            <v-alert
+                              v-if="useThisServer"
+                              :type="frameImageUrlWarning ? 'warning' : 'info'"
+                              variant="tonal"
+                              density="compact"
+                              class="mb-2 ml-8"
+                            >
+                              <div class="text-caption">
+                                Frame fetch URL: <code>{{ getFrameImageUrl(selectedSource) }}</code>
+                              </div>
+                              <div v-if="frameImageUrlWarning" class="text-caption mt-1">
+                                {{ frameImageUrlWarning }}
+                              </div>
+                            </v-alert>
 
                             <!-- Custom URL -->
                             <v-text-field
@@ -3166,7 +3180,7 @@ const saveDevice = async () => {
       // /image/*).
       let imageUrl = deviceConfig.image_url;
       if (useThisServer.value && deviceConfig.rotation_mode === 'url') {
-        imageUrl = getImageUrl(selectedSource.value);
+        imageUrl = getFrameImageUrl(selectedSource.value);
       }
 
       const result = await updateDeviceConfig(editingDevice.id, {
@@ -4079,13 +4093,47 @@ const revokeSessionHandler = async (id: number) => {
 
 // Get image endpoint URL
 // Always use direct add-on port for device access (ESP32 devices access directly, not via ingress)
+const imageAddonPort = () => import.meta.env.VITE_ADDON_PORT || '9607';
+
+const directImageBaseFromHomeAssistantUrl = () => {
+  const haUrl = String(deviceConfig.ha_url || '').trim();
+  if (!haUrl) return '';
+  try {
+    const parsed = new URL(haUrl);
+    // The add-on's exposed port is plain HTTP in the default HA add-on setup.
+    const protocol = parsed.protocol === 'https:' ? 'http:' : parsed.protocol;
+    return `${protocol}//${parsed.hostname}:${imageAddonPort()}`;
+  } catch {
+    return '';
+  }
+};
+
 const getImageUrl = (source: string) => {
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
-  // Use configurable port via env var, default to 9607 for production
-  const addonPort = import.meta.env.VITE_ADDON_PORT || '9607';
-  return `${protocol}//${hostname}:${addonPort}/image/${source}`;
+  return `${protocol}//${hostname}:${imageAddonPort()}/image/${source}`;
 };
+
+const getFrameImageUrl = (source: string) => {
+  const base = directImageBaseFromHomeAssistantUrl();
+  if (base) {
+    return `${base}/image/${source}`;
+  }
+  return getImageUrl(source);
+};
+
+const frameImageUrlWarning = computed(() => {
+  if (!useThisServer.value || deviceConfig.rotation_mode !== 'url') return '';
+  if (directImageBaseFromHomeAssistantUrl()) return '';
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'This URL uses localhost, which the frame cannot reach. Set Home Assistant URL to a LAN address such as http://homeassistant.local:8123.';
+  }
+  if (host.endsWith('.ui.nabu.casa')) {
+    return 'This URL uses the HA Cloud hostname. The frame usually cannot reach the add-on on port 9607 there. Set Home Assistant URL to a LAN address such as http://homeassistant.local:8123.';
+  }
+  return '';
+});
 
 // Copy to clipboard
 const copyToClipboard = async (text: string) => {

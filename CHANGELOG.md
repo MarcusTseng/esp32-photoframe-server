@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.5-public-art.4
+
+### Fixed
+- Device config now derives the frame image fetch URL from the configured Home Assistant LAN URL when available, replacing the HA port with the add-on's direct image port. This avoids pushing browser-origin URLs such as HA Cloud, ingress, localhost, or SSH tunnel hosts to ESP32 frames, which fail with `ESP_ERR_HTTP_CONNECT`.
+- Device dialog now shows the exact frame fetch URL and warns when it would use localhost or an HA Cloud hostname that the frame usually cannot reach.
+
 ## v1.7.5
 
 ### Fixed

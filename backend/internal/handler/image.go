@@ -12,6 +12,7 @@ import (
 	_ "image/jpeg"
 
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -560,6 +561,7 @@ func (h *ImageHandler) UpdateDeviceConfig(c echo.Context) error {
 				token, err := h.auth.GetOrGenerateDeviceToken(userID, username, device.Name, &device.ID)
 				if err == nil {
 					configMap["access_token"] = token
+					configMap["image_url"] = imageURLWithToken(imageURL, token)
 					// Re-serialize with token for DB storage
 					updated, _ := json.Marshal(configMap)
 					updates["device_config"] = string(updated)
@@ -583,6 +585,26 @@ func (h *ImageHandler) UpdateDeviceConfig(c echo.Context) error {
 		"push_result":         pushResult,
 		"config_last_updated": updates["config_last_updated"],
 	})
+}
+
+func imageURLWithToken(imageURL, token string) string {
+	if imageURL == "" || token == "" {
+		return imageURL
+	}
+
+	parsed, err := url.Parse(imageURL)
+	if err != nil {
+		separator := "?"
+		if strings.Contains(imageURL, "?") {
+			separator = "&"
+		}
+		return imageURL + separator + "token=" + url.QueryEscape(token)
+	}
+
+	query := parsed.Query()
+	query.Set("token", token)
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 // GetDeviceConfig returns the server-side device config.
@@ -665,7 +687,6 @@ func (h *ImageHandler) GetServedImageThumbnail(c echo.Context) error {
 
 	return c.Blob(http.StatusOK, "image/jpeg", data)
 }
-
 
 // applyConfigSyncHeader sets the X-Config-Payload response header when the
 // server's stored device config is newer than what the device most recently
