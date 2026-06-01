@@ -1,10 +1,37 @@
 # Changelog
 
+## v1.7.5-public-art.5
+
+### Fixed
+- `/api/public-art/thumbnail` was in the `protectedApi` group requiring auth, causing 401 errors for both browser search UI and ESP32 frames fetching candidate thumbnails. Moved to public routes since it only fetches public external IIIF URLs from the Art Institute of Chicago.
+
 ## v1.7.5-public-art.4
 
 ### Fixed
 - Device config now derives the frame image fetch URL from the configured Home Assistant LAN URL when available, replacing the HA port with the add-on's direct image port. This avoids pushing browser-origin URLs such as HA Cloud, ingress, localhost, or SSH tunnel hosts to ESP32 frames, which fail with `ESP_ERR_HTTP_CONNECT`.
 - Device dialog now shows the exact frame fetch URL and warns when it would use localhost or an HA Cloud hostname that the frame usually cannot reach.
+
+## v1.7.5-public-art.3
+
+### Fixed
+- Proxy Public Art thumbnails through the server via `GET /public-art/thumbnail?candidate_image_url=...&candidate_thumbnail_url=...`. The browser search UI now loads artwork previews without hitting CORS issues or AIC rate limits. The endpoint decodes data-URL thumbnails and falls back to AIC IIIF for full-size previews.
+
+## v1.7.5-public-art.2
+
+### Fixed
+- When AIC IIIF images are blocked (CORS, rate limits, or network), the thumbnail proxy now falls back to the LQIP data URL embedded in the AIC API response, so users still see a preview even when the full image is inaccessible.
+
+## v1.7.5-public-art.1
+
+### Added
+- **Public Art source (Art Institute of Chicago)**: search for artworks by keyword, browse ranked candidates in a card grid with title, artist, date, and thumbnail, select a candidate to display on the frame, or use query-based rotation that randomly picks a new ranked artwork on each refresh. Candidate images are cached to disk to minimize repeated downloads.
+- `GET /api/public-art/search?q=...` — search artworks via AIC API, returns ranked candidates.
+- `GET /api/public-art/thumbnail?candidate_image_url=...&candidate_thumbnail_url=...` — proxy artwork thumbnails server-side to avoid CORS.
+- `GET /api/public-art/preview?candidate_image_url=...&candidate_thumbnail_url=...&w=&h=` — resize a candidate image for the preview panel.
+- `POST /public-art/select` — persist a selected candidate as the frame's artwork.
+- `DELETE /public-art/select` — clear selection and resume query-based rotation.
+- Public Art search panel in Settings UI: keyword search, ranked candidate grid, "Display on Frame" and "Clear Selection" buttons.
+- Device dialog shows the frame image fetch URL.
 
 ## v1.7.5
 
