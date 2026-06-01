@@ -42,10 +42,10 @@ type PublicArtSelectRequest struct {
 }
 
 type PublicArtPreviewRequest struct {
-	Candidate   publicart.Candidate   `json:"candidate"`
-	Composition publicart.Composition `json:"composition"`
-	TargetWidth  int                  `json:"target_width"`
-	TargetHeight int                  `json:"target_height"`
+	Candidate    publicart.Candidate   `json:"candidate"`
+	Composition  publicart.Composition `json:"composition"`
+	TargetWidth  int                   `json:"target_width"`
+	TargetHeight int                   `json:"target_height"`
 }
 
 // PreviewImageRequest is used for GET /public-art/preview with query params.
@@ -117,11 +117,13 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 	// Support GET (query params) and POST (JSON body)
 	var comp publicart.Composition
 	var imageURL string
+	var thumbnailURL string
 	var targetW, targetH int
 
 	if c.Request().Method == http.MethodGet {
 		// GET /public-art/preview?candidate_image_url=...&scale_mode=cover&...
 		imageURL = c.QueryParam("candidate_image_url")
+		thumbnailURL = c.QueryParam("candidate_thumbnail_url")
 		if imageURL == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate_image_url is required"})
 		}
@@ -162,6 +164,7 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 		}
 		imageURL = req.Candidate.ImageURL
+		thumbnailURL = req.Candidate.ThumbnailURL
 		if imageURL == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate image_url is required"})
 		}
@@ -186,6 +189,9 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 	}
 
 	data, err := h.downloadImage(imageURL)
+	if err != nil && thumbnailURL != "" {
+		data, err = h.downloadImage(thumbnailURL)
+	}
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch image: " + err.Error()})
 	}
@@ -204,6 +210,9 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 }
 
 func (h *PublicArtHandler) downloadImage(imageURL string) ([]byte, error) {
+	if data, ok, err := publicart.DecodeDataImageURL(imageURL); ok {
+		return data, err
+	}
 	req, err := http.NewRequest(http.MethodGet, imageURL, nil)
 	if err != nil {
 		return nil, err

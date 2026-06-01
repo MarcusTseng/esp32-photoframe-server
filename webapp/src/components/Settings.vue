@@ -979,7 +979,7 @@
                         >
                           <v-card variant="outlined" class="h-100 public-art-candidate-card">
                             <v-img
-                              :src="candidate.image_url"
+                              :src="candidate.thumbnail_url || candidate.image_url"
                               height="180"
                               cover
                               class="bg-grey-lighten-3"
@@ -3244,6 +3244,7 @@ type PublicArtCandidate = {
   artist?: string;
   date?: string;
   image_url: string;
+  thumbnail_url?: string;
   source_url?: string;
   width?: number;
   height?: number;
@@ -3264,6 +3265,8 @@ const publicArtSearchError = ref('');
 const publicArtSelectingId = ref('');
 const publicArtClearing = ref(false);
 const publicArtComposingId = ref('');
+const publicArtPreviewSourceUrl = ref('');
+const publicArtPreviewThumbnailUrl = ref('');
 const publicArtPreviewUrl = ref('');
 const publicArtComposition = reactive<PublicArtComposition>({
   scale_mode: 'cover',
@@ -3387,22 +3390,27 @@ const openComposePanel = (candidate: PublicArtCandidate) => {
   publicArtComposition.pan_x = 0;
   publicArtComposition.pan_y = 0;
   publicArtComposition.background_color = '#ffffff';
-  publicArtPreviewUrl.value = candidate.image_url;
+  publicArtPreviewSourceUrl.value = candidate.image_url;
+  publicArtPreviewThumbnailUrl.value = candidate.thumbnail_url || '';
+  publicArtPreviewUrl.value = candidate.thumbnail_url || candidate.image_url;
 };
 
 const closeComposePanel = () => {
   publicArtComposingId.value = '';
+  publicArtPreviewSourceUrl.value = '';
+  publicArtPreviewThumbnailUrl.value = '';
   publicArtPreviewUrl.value = '';
   publicArtPreviewError.value = '';
 };
 
 const updatePublicArtPreview = async () => {
-  if (!publicArtPreviewUrl.value) return;
+  if (!publicArtPreviewSourceUrl.value) return;
   publicArtPreviewLoading.value = true;
   publicArtPreviewError.value = '';
   try {
     const params = new URLSearchParams({
-      candidate_image_url: publicArtPreviewUrl.value,
+      candidate_image_url: publicArtPreviewSourceUrl.value,
+      candidate_thumbnail_url: publicArtPreviewThumbnailUrl.value,
       scale_mode: publicArtComposition.scale_mode,
       zoom: String(publicArtComposition.zoom),
       pan_x: String(publicArtComposition.pan_x),

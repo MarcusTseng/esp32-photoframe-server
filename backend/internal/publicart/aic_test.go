@@ -21,7 +21,7 @@ func TestAICProviderSearchBuildsCandidatesWithIIIFImageURLs(t *testing.T) {
 		_, _ = w.Write([]byte(`{
 			"config": {"iiif_url": "https://www.artic.edu/iiif/2"},
 			"data": [
-				{"id": 1, "title": "Water Lilies", "artist_title": "Claude Monet", "date_display": "1906", "image_id": "abc123", "thumbnail": {"width": 3000, "height": 2000}},
+				{"id": 1, "title": "Water Lilies", "artist_title": "Claude Monet", "date_display": "1906", "image_id": "abc123", "thumbnail": {"lqip":"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "width": 3000, "height": 2000}},
 				{"id": 2, "title": "No Image", "artist_title": "Unknown", "image_id": null}
 			]
 		}`))
@@ -50,6 +50,9 @@ func TestAICProviderSearchBuildsCandidatesWithIIIFImageURLs(t *testing.T) {
 	wantURL := "https://www.artic.edu/iiif/2/abc123/full/2000,/0/default.jpg"
 	if got.ImageURL != wantURL {
 		t.Fatalf("ImageURL = %q, want %q", got.ImageURL, wantURL)
+	}
+	if got.ThumbnailURL == "" {
+		t.Fatal("ThumbnailURL should be populated from AIC thumbnail.lqip")
 	}
 	if got.Width != 3000 || got.Height != 2000 {
 		t.Fatalf("dimensions = %dx%d, want 3000x2000", got.Width, got.Height)

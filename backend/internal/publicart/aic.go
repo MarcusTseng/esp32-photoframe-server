@@ -83,8 +83,9 @@ type aicSearchResponse struct {
 		DateDisplay string  `json:"date_display"`
 		ImageID     *string `json:"image_id"`
 		Thumbnail   struct {
-			Width  int `json:"width"`
-			Height int `json:"height"`
+			LQIP   string `json:"lqip"`
+			Width  int    `json:"width"`
+			Height int    `json:"height"`
 		} `json:"thumbnail"`
 	} `json:"data"`
 }
@@ -102,15 +103,16 @@ func (r aicSearchResponse) Candidates() []Candidate {
 		}
 		imageID := strings.TrimSpace(*item.ImageID)
 		candidates = append(candidates, Candidate{
-			Provider:  ProviderAIC,
-			ID:        fmt.Sprintf("aic:%d", item.ID),
-			Title:     item.Title,
-			Artist:    item.ArtistTitle,
-			Date:      item.DateDisplay,
-			ImageURL:  fmt.Sprintf("%s/%s/full/2000,/0/default.jpg", iiifURL, url.PathEscape(imageID)),
-			SourceURL: fmt.Sprintf("https://www.artic.edu/artworks/%d", item.ID),
-			Width:     item.Thumbnail.Width,
-			Height:    item.Thumbnail.Height,
+			Provider:     ProviderAIC,
+			ID:           fmt.Sprintf("aic:%d", item.ID),
+			Title:        item.Title,
+			Artist:       item.ArtistTitle,
+			Date:         item.DateDisplay,
+			ImageURL:     fmt.Sprintf("%s/%s/full/2000,/0/default.jpg", iiifURL, url.PathEscape(imageID)),
+			ThumbnailURL: item.Thumbnail.LQIP,
+			SourceURL:    fmt.Sprintf("https://www.artic.edu/artworks/%d", item.ID),
+			Width:        item.Thumbnail.Width,
+			Height:       item.Thumbnail.Height,
 		})
 	}
 	return candidates

@@ -193,6 +193,37 @@ func TestServiceFetchImageBadCacheFallsBackToDownload(t *testing.T) {
 	}
 }
 
+func TestServiceFetchImageFallsBackToThumbnailDataURL(t *testing.T) {
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "cloudflare challenge", http.StatusForbidden)
+	}))
+	defer imageServer.Close()
+
+	store := &fakeSettingsStore{}
+	selected := Candidate{
+		Provider:     ProviderAIC,
+		ID:           "aic:selected",
+		Title:        "Selected",
+		ImageURL:     imageServer.URL,
+		ThumbnailURL: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+	}
+	if err := SaveSelectedArtwork(store, SelectedArtwork{Candidate: selected, Composition: DefaultComposition()}); err != nil {
+		t.Fatalf("SaveSelectedArtwork returned error: %v", err)
+	}
+	svc := NewService(ServiceOptions{HTTPClient: imageServer.Client(), Settings: store})
+
+	img, got, err := svc.FetchImage()
+	if err != nil {
+		t.Fatalf("FetchImage returned error: %v", err)
+	}
+	if got.Candidate.ID != selected.ID {
+		t.Fatalf("selected ID = %q, want %q", got.Candidate.ID, selected.ID)
+	}
+	if img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
+		t.Fatalf("fallback thumbnail decoded to empty image: %v", img.Bounds())
+	}
+}
+
 func writeTinyPNG(t *testing.T, w http.ResponseWriter) {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, 2, 1))

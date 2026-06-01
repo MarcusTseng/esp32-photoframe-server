@@ -5,15 +5,16 @@ const (
 )
 
 type Candidate struct {
-	Provider  string `json:"provider"`
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Artist    string `json:"artist,omitempty"`
-	Date      string `json:"date,omitempty"`
-	ImageURL  string `json:"image_url"`
-	SourceURL string `json:"source_url,omitempty"`
-	Width     int    `json:"width,omitempty"`
-	Height    int    `json:"height,omitempty"`
+	Provider     string `json:"provider"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Artist       string `json:"artist,omitempty"`
+	Date         string `json:"date,omitempty"`
+	ImageURL     string `json:"image_url"`
+	ThumbnailURL string `json:"thumbnail_url,omitempty"`
+	SourceURL    string `json:"source_url,omitempty"`
+	Width        int    `json:"width,omitempty"`
+	Height       int    `json:"height,omitempty"`
 }
 
 type SearchOptions struct {
@@ -22,10 +23,10 @@ type SearchOptions struct {
 
 // Composition describes how an artwork is fitted to the target display.
 type Composition struct {
-	ScaleMode       string  `json:"scale_mode"`        // "cover" | "fit" | "custom"
-	Zoom            float64 `json:"zoom"`              // 1.0 = 100%, 2.0 = 200%
-	PanX            float64 `json:"pan_x"`             // -0.5 to 0.5 (fraction of image center shift)
-	PanY            float64 `json:"pan_y"`             // -0.5 to 0.5
+	ScaleMode       string  `json:"scale_mode"`       // "cover" | "fit" | "custom"
+	Zoom            float64 `json:"zoom"`             // 1.0 = 100%, 2.0 = 200%
+	PanX            float64 `json:"pan_x"`            // -0.5 to 0.5 (fraction of image center shift)
+	PanY            float64 `json:"pan_y"`            // -0.5 to 0.5
 	BackgroundColor string  `json:"background_color"` // e.g. "white", "black", "#1a1a1a"
 }
 

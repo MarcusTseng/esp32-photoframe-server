@@ -160,6 +160,9 @@ func (s *Service) downloadImageBytes(imageURL string) ([]byte, error) {
 	if imageURL == "" {
 		return nil, errors.New("publicart: image URL is required")
 	}
+	if data, ok, err := DecodeDataImageURL(imageURL); ok {
+		return data, err
+	}
 	req, err := http.NewRequest(http.MethodGet, imageURL, nil)
 	if err != nil {
 		return nil, err
@@ -186,6 +189,9 @@ func (s *Service) fetchArtworkImage(candidate Candidate) (image.Image, error) {
 	}
 
 	data, err := s.downloadImageBytes(candidate.ImageURL)
+	if err != nil && candidate.ThumbnailURL != "" {
+		data, err = s.downloadImageBytes(candidate.ThumbnailURL)
+	}
 	if err != nil {
 		return nil, err
 	}
