@@ -9,6 +9,7 @@ A image server for the [ESP32 PhotoFrame](https://github.com/aitjcize/esp32-phot
     - **Synology Photos**: Connect directly to your Synology NAS (supports DSM 7 Personal and Shared spaces).
     - **Telegram Bot**: Send photos directly to your frame via a Telegram bot.
     - **URL Proxy**: Display images from any URL.
+    - **Public Art**: Display open-access artwork from museum collections (currently Art Institute of Chicago).
     - **AI Generation**: Generate unique images using OpenAI (GPT Image, DALL-E) or Google Gemini.
 - **Smart Image Processing**:
     - Automatic cropping to device aspect ratio (800x480 or 480x800).
@@ -33,7 +34,8 @@ The easiest way to run the server is as a Home Assistant add-on.
 
 1. **Add Repository**:
    - Go to **Settings** → **Add-ons** → **Add-on Store** → **⋮** (three dots) → **Repositories**
-   - Add: `https://github.com/aitjcize/esp32-photoframe-server`
+   - Add the stable upstream repository: `https://github.com/aitjcize/esp32-photoframe-server`
+   - For Marcus's Public Art test build, add the fork instead: `https://github.com/MarcusTseng/esp32-photoframe-server`
 
 2. **Install Add-on**:
    - Find "ESP32 PhotoFrame Server" in the add-on store
@@ -153,6 +155,19 @@ Access the dashboard at `http://localhost:9607` (or your server IP, or via Home 
 3. Add URLs to images you want to display.
 4. Assign URLs to specific devices.
 
+### Public Art Setup
+
+Display open-access artwork from museum collections without changing the ESP32 firmware. The current implementation uses the Art Institute of Chicago public API and works without an API key.
+
+1. Go to **Settings** → **Data Sources**.
+2. Select **Public Art**.
+3. Copy the generated `public_art` image URL, or set the **Default Search Query** first (for example: `monet`, `ukiyo-e cat`, `landscape painting`).
+4. Optionally adjust image-quality settings:
+   - **Minimum Image Long Edge**: candidates below this size are penalized.
+   - **Preferred Image Long Edge**: requested image size for museum IIIF images; use `1600` or higher for large e-paper frames.
+5. Click **Save Public Art Settings**.
+6. Configure the photo frame Auto-Rotate URL to use `/image/public_art` and the device token, the same way as other image sources.
+
 ### AI Generation Setup
 
 Generate unique AI artwork for your photo frame using OpenAI or Google Gemini.
@@ -198,6 +213,7 @@ http(s)://<hostname/IP address>:9607/image/<source>
 - **`GET /image/synology_photos`**: Returns a random image from **Synology Photos**.
 - **`GET /image/telegram`**: Returns the last photo sent via **Telegram Bot**.
 - **`GET /image/url_proxy`**: Returns a random image from configured URLs.
+- **`GET /image/public_art`**: Returns an open-access museum artwork for the configured Public Art query.
 - **`GET /image/ai_generation`**: Returns a newly generated AI image based on device prompt.
 
 ### Authentication
