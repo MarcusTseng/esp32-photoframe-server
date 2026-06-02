@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.7.5-public-art.10
+
+### Fixed
+- Public Art search thumbnails now use a real IIIF thumbnail derivative (`full/600,`) instead of AIC's embedded LQIP data GIF, fixing the blocky low-pixel preview cards.
+- Public Art thumbnail and preview endpoints now return encoded JPEG blobs through Echo so access logs report real response sizes instead of `bytes_out:0`.
+
+### Changed
+- Public Art `Preview & crop` now supports direct drag-to-reposition and mouse-wheel zoom on the preview image, while still saving the same server-side composition values used by `/image/public_art`.
+
 ## v1.7.5-public-art.9
 
 ### Fixed

@@ -102,6 +102,7 @@ func (r aicSearchResponse) Candidates() []Candidate {
 			continue
 		}
 		imageID := strings.TrimSpace(*item.ImageID)
+		thumbnailURL := fmt.Sprintf("%s/%s/full/600,/0/default.jpg", iiifURL, url.PathEscape(imageID))
 		candidates = append(candidates, Candidate{
 			Provider:     ProviderAIC,
 			ID:           fmt.Sprintf("aic:%d", item.ID),
@@ -109,7 +110,7 @@ func (r aicSearchResponse) Candidates() []Candidate {
 			Artist:       item.ArtistTitle,
 			Date:         item.DateDisplay,
 			ImageURL:     fmt.Sprintf("%s/%s/full/2000,/0/default.jpg", iiifURL, url.PathEscape(imageID)),
-			ThumbnailURL: item.Thumbnail.LQIP,
+			ThumbnailURL: thumbnailURL,
 			SourceURL:    fmt.Sprintf("https://www.artic.edu/artworks/%d", item.ID),
 			Width:        item.Thumbnail.Width,
 			Height:       item.Thumbnail.Height,

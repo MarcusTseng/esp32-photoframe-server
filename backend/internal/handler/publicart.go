@@ -133,13 +133,12 @@ func (h *PublicArtHandler) Thumbnail(c echo.Context) error {
 	}
 	composed := publicart.ComposeImage(img, publicart.Composition{ScaleMode: "cover", Zoom: 1, BackgroundColor: "white"}, 360, 190)
 
-	c.Response().Header().Set("Content-Type", "image/jpeg")
-	c.Response().Header().Set("Cache-Control", "public, max-age=86400")
-	c.Response().WriteHeader(http.StatusOK)
-	if err := publicart.EncodeImage(c.Response().Writer, composed, "jpeg"); err != nil {
+	var out bytes.Buffer
+	if err := publicart.EncodeImage(&out, composed, "jpeg"); err != nil {
 		return err
 	}
-	return nil
+	c.Response().Header().Set("Cache-Control", "public, max-age=86400")
+	return c.Blob(http.StatusOK, "image/jpeg", out.Bytes())
 }
 
 func (h *PublicArtHandler) Preview(c echo.Context) error {
@@ -227,12 +226,11 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 	}
 	composed := publicart.ComposeImage(img, comp, targetW, targetH)
 
-	c.Response().Header().Set("Content-Type", "image/jpeg")
-	c.Response().WriteHeader(http.StatusOK)
-	if err := publicart.EncodeImage(c.Response().Writer, composed, "jpeg"); err != nil {
+	var out bytes.Buffer
+	if err := publicart.EncodeImage(&out, composed, "jpeg"); err != nil {
 		return err
 	}
-	return nil
+	return c.Blob(http.StatusOK, "image/jpeg", out.Bytes())
 }
 
 func (h *PublicArtHandler) downloadBestAvailableImage(primaryURL, fallbackURL string) ([]byte, error) {

@@ -51,8 +51,12 @@ func TestAICProviderSearchBuildsCandidatesWithIIIFImageURLs(t *testing.T) {
 	if got.ImageURL != wantURL {
 		t.Fatalf("ImageURL = %q, want %q", got.ImageURL, wantURL)
 	}
-	if got.ThumbnailURL == "" {
-		t.Fatal("ThumbnailURL should be populated from AIC thumbnail.lqip")
+	wantThumbnailURL := "https://www.artic.edu/iiif/2/abc123/full/600,/0/default.jpg"
+	if got.ThumbnailURL != wantThumbnailURL {
+		t.Fatalf("ThumbnailURL = %q, want %q", got.ThumbnailURL, wantThumbnailURL)
+	}
+	if got.ThumbnailURL == got.ImageURL {
+		t.Fatal("ThumbnailURL should be a smaller IIIF derivative, not the full preview image")
 	}
 	if got.Width != 3000 || got.Height != 2000 {
 		t.Fatalf("dimensions = %dx%d, want 3000x2000", got.Width, got.Height)

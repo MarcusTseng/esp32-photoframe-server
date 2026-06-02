@@ -1138,11 +1138,23 @@
                                 <div v-if="publicArtPreviewLoading" class="d-flex justify-center align-center" style="height:300px">
                                   <v-progress-circular indeterminate color="primary"></v-progress-circular>
                                 </div>
-                                <img
+                                <div
                                   v-if="publicArtPreviewUrl && !publicArtPreviewError"
-                                  :src="publicArtPreviewUrl"
-                                  style="width:100%;max-height:300px;object-fit:contain;display:block"
-                                />
+                                  ref="publicArtCropFrame"
+                                  class="public-art-crop-frame"
+                                  @pointerdown="startPublicArtDrag"
+                                  @wheel.prevent="zoomPublicArtPreview"
+                                >
+                                  <img
+                                    :src="publicArtPreviewUrl"
+                                    class="public-art-crop-img"
+                                    draggable="false"
+                                    alt="Public art crop preview"
+                                  />
+                                  <div class="public-art-crop-hint">
+                                    Drag to reposition · scroll to zoom
+                                  </div>
+                                </div>
                                 <v-alert v-if="publicArtPreviewError" type="error" variant="tonal" density="compact">
                                   {{ publicArtPreviewError }}
                                 </v-alert>
@@ -2449,7 +2461,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed, watch } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref, computed, watch } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { useSynologyStore } from '../stores/synology';
 import { useImmichStore } from '../stores/immich';
@@ -3382,6 +3394,16 @@ const publicArtComposition = reactive<PublicArtComposition>({
 });
 const publicArtPreviewLoading = ref(false);
 const publicArtPreviewError = ref('');
+const publicArtCropFrame = ref<HTMLElement | null>(null);
+const publicArtDrag = reactive({
+  active: false,
+  x: 0,
+  y: 0,
+});
+let publicArtPreviewTimer: number | undefined;
+
+const clampPublicArtPan = (value: number) => Math.max(-0.5, Math.min(0.5, value));
+const clampPublicArtZoom = (value: number) => Math.max(0.5, Math.min(5, value));
 
 const isPublicArtCandidateLargeEnough = (candidate: PublicArtCandidate) => {
   const longEdge = Math.max(candidate.width || 0, candidate.height || 0);
@@ -3573,6 +3595,65 @@ const updatePublicArtPreview = async () => {
   } finally {
     publicArtPreviewLoading.value = false;
   }
+};
+
+const schedulePublicArtPreviewUpdate = () => {
+  if (publicArtPreviewTimer !== undefined) {
+    window.clearTimeout(publicArtPreviewTimer);
+  }
+  publicArtPreviewTimer = window.setTimeout(() => {
+    publicArtPreviewTimer = undefined;
+    updatePublicArtPreview();
+  }, 120);
+};
+
+const movePublicArtCrop = (clientX: number, clientY: number) => {
+  if (!publicArtDrag.active || !publicArtCropFrame.value) return;
+  const rect = publicArtCropFrame.value.getBoundingClientRect();
+  const dx = clientX - publicArtDrag.x;
+  const dy = clientY - publicArtDrag.y;
+  publicArtDrag.x = clientX;
+  publicArtDrag.y = clientY;
+
+  const zoom = clampPublicArtZoom(publicArtComposition.zoom || 1);
+  publicArtComposition.pan_x = clampPublicArtPan(
+    publicArtComposition.pan_x - dx / Math.max(rect.width, 1) / zoom
+  );
+  publicArtComposition.pan_y = clampPublicArtPan(
+    publicArtComposition.pan_y - dy / Math.max(rect.height, 1) / zoom
+  );
+  schedulePublicArtPreviewUpdate();
+};
+
+const stopPublicArtDrag = () => {
+  if (!publicArtDrag.active) return;
+  publicArtDrag.active = false;
+  window.removeEventListener('pointermove', onPublicArtPointerMove);
+  window.removeEventListener('pointerup', stopPublicArtDrag);
+  window.removeEventListener('pointercancel', stopPublicArtDrag);
+  updatePublicArtPreview();
+};
+
+const onPublicArtPointerMove = (event: PointerEvent) => {
+  movePublicArtCrop(event.clientX, event.clientY);
+};
+
+const startPublicArtDrag = (event: PointerEvent) => {
+  if (!publicArtPreviewUrl.value) return;
+  publicArtDrag.active = true;
+  publicArtDrag.x = event.clientX;
+  publicArtDrag.y = event.clientY;
+  window.addEventListener('pointermove', onPublicArtPointerMove);
+  window.addEventListener('pointerup', stopPublicArtDrag);
+  window.addEventListener('pointercancel', stopPublicArtDrag);
+};
+
+const zoomPublicArtPreview = (event: WheelEvent) => {
+  const delta = event.deltaY > 0 ? -0.1 : 0.1;
+  publicArtComposition.zoom = clampPublicArtZoom(
+    Number((publicArtComposition.zoom + delta).toFixed(1))
+  );
+  schedulePublicArtPreviewUpdate();
 };
 
 const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
@@ -3770,6 +3851,14 @@ onMounted(async () => {
   if (tab || source) {
     window.history.replaceState({}, '', '/');
   }
+});
+
+onBeforeUnmount(() => {
+  if (publicArtPreviewTimer !== undefined) {
+    window.clearTimeout(publicArtPreviewTimer);
+    publicArtPreviewTimer = undefined;
+  }
+  stopPublicArtDrag();
 });
 
 const saveSettingsInternal = async () => {
@@ -4279,5 +4368,46 @@ const getDeviceFromUA = (ua: string) => {
 .public-art-thumb-error {
   height: 180px;
   width: 100%;
+}
+
+.public-art-crop-frame {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  background: #e9e9e9;
+  cursor: grab;
+  display: flex;
+  justify-content: center;
+  max-height: 340px;
+  overflow: hidden;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  width: 100%;
+}
+
+.public-art-crop-frame:active {
+  cursor: grabbing;
+}
+
+.public-art-crop-img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  width: 100%;
+}
+
+.public-art-crop-hint {
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 999px;
+  bottom: 8px;
+  color: white;
+  font-size: 12px;
+  left: 50%;
+  padding: 4px 10px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 </style>
