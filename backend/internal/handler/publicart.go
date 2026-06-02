@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -125,10 +126,12 @@ func (h *PublicArtHandler) Thumbnail(c echo.Context) error {
 
 	data, err := h.downloadBestAvailableImage(thumbnailURL, imageURL)
 	if err != nil {
+		log.Printf("[publicart] thumbnail: failed to fetch image (image_url=%s, thumbnail_url=%s): %v", imageURL, thumbnailURL, err)
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch thumbnail: " + err.Error()})
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
+		log.Printf("[publicart] thumbnail: failed to decode image (size=%d): %v", len(data), err)
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to decode thumbnail: " + err.Error()})
 	}
 	composed := publicart.ComposeImage(img, publicart.Composition{ScaleMode: "cover", Zoom: 1, BackgroundColor: "white"}, 360, 190)
@@ -218,10 +221,12 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 
 	data, err := h.downloadBestAvailableImage(imageURL, thumbnailURL)
 	if err != nil {
+		log.Printf("[publicart] preview: failed to fetch image (image_url=%s, thumbnail_url=%s): %v", imageURL, thumbnailURL, err)
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch image: " + err.Error()})
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
+		log.Printf("[publicart] preview: failed to decode image (size=%d): %v", len(data), err)
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to decode image: " + err.Error()})
 	}
 	composed := publicart.ComposeImage(img, comp, targetW, targetH)
@@ -233,17 +238,39 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 	return c.Blob(http.StatusOK, "image/jpeg", out.Bytes())
 }
 
+// downloadBestAvailableImage tries primaryURL first, then falls back to fallbackURL.
+// It also tries an imgix CDN substitution for AIC IIIF URLs when the primary fails,
+// to handle environments where the backend can't reach the IIIF endpoint directly.
 func (h *PublicArtHandler) downloadBestAvailableImage(primaryURL, fallbackURL string) ([]byte, error) {
+	// Try primary
 	data, err := h.downloadImage(primaryURL)
 	if err == nil {
 		return data, nil
 	}
-	if fallbackURL != "" && fallbackURL != primaryURL {
-		fallbackData, fallbackErr := h.downloadImage(fallbackURL)
-		if fallbackErr == nil {
-			return fallbackData, nil
+
+	// If primary failed, try imgix CDN substitution for AIC IIIF URLs
+	imgixURL := publicart.TryImgixFallback(primaryURL)
+	if imgixURL != "" {
+		if data, err := h.downloadImage(imgixURL); err == nil {
+			return data, nil
 		}
 	}
+
+	// Try fallback
+	if fallbackURL != "" && fallbackURL != primaryURL {
+		data, err := h.downloadImage(fallbackURL)
+		if err == nil {
+			return data, nil
+		}
+		// Try imgix fallback for fallback too
+		imgixURL = publicart.TryImgixFallback(fallbackURL)
+		if imgixURL != "" {
+			if data, err := h.downloadImage(imgixURL); err == nil {
+				return data, nil
+			}
+		}
+	}
+
 	return nil, err
 }
 

@@ -1,6 +1,9 @@
 # Changelog
 
-## v1.7.5-public-art.10
+## v1.7.5-public-art.11
+- **Fix**: Thumbnail grid now loads IIIF URLs directly in browser (bypasses backend proxy), avoiding HA ingress fetch failures
+- **Fix**: Backend `downloadBestAvailableImage` now retries via imgix CDN (`img.artic.edu`) when direct AIC IIIF URL is unreachable
+- **Fix**: Backend now logs detailed error messages for thumbnail/preview fetch failures to aid debugging
 
 ### Fixed
 - Public Art search thumbnails now use a real IIIF thumbnail derivative (`full/600,`) instead of AIC's embedded LQIP data GIF, fixing the blocky low-pixel preview cards.

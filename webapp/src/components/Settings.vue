@@ -3542,14 +3542,28 @@ const searchPublicArt = async () => {
 };
 
 const publicArtThumbnailUrl = (candidate: PublicArtCandidate) => {
-  const params = new URLSearchParams();
-  if (candidate.image_url) {
-    params.set('candidate_image_url', candidate.image_url);
-  }
+  // Prefer the direct IIIF thumbnail URL from the API response.
+  // This avoids the backend proxy for simple thumbnails, which may fail
+  // in environments where the server can't reach external CDN URLs.
   if (candidate.thumbnail_url) {
-    params.set('candidate_thumbnail_url', candidate.thumbnail_url);
+    return candidate.thumbnail_url;
   }
-  return `api/public-art/thumbnail?${params.toString()}`;
+  if (candidate.image_url) {
+    // Fallback: construct IIIF thumbnail from the full image URL
+    try {
+      const url = new URL(candidate.image_url);
+      const parts = url.pathname.split('/');
+      // URL format: /iiif/2/{imageId}/full/2000,/0/default.jpg
+      // Convert to thumbnail: /iiif/2/{imageId}/full/600,/0/default.jpg
+      if (parts.length >= 5 && parts[1] === 'iiif' && parts[4] === 'full') {
+        parts[4] = 'full/600,/0';
+        parts.pop(); // remove default.jpg
+        url.pathname = parts.join('/');
+        return url.toString();
+      }
+    } catch {}
+  }
+  return '';
 };
 
 const openComposePanel = (candidate: PublicArtCandidate) => {

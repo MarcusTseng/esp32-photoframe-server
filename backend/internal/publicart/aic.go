@@ -118,3 +118,20 @@ func (r aicSearchResponse) Candidates() []Candidate {
 	}
 	return candidates
 }
+
+// TryImgixFallback converts an AIC IIIF URL to an imgix CDN proxy URL.
+// The imgix proxy (https://img.artic.edu) is reachable from environments
+// that can't reach the raw IIIF endpoint (e.g., HA addon containers with
+// strict outbound routing). Returns empty string if URL is not an AIC IIIF URL.
+func TryImgixFallback(iiifURL string) string {
+	const imgixBase = "https://img.artic.edu"
+	if iiifURL == "" || !strings.Contains(iiifURL, "artic.edu/iiif") {
+		return ""
+	}
+	// Replace the IIIF host with the imgix proxy while preserving path and params.
+	// Original: https://www.artic.edu/iiif/2/{id}/full/600,/0/default.jpg
+	// Proxied:  https://img.artic.edu/iiif/2/{id}/full/600,/0/default.jpg
+	idx := strings.Index(iiifURL, "artic.edu/iiif")
+	path := iiifURL[idx+len("artic.edu"):]
+	return imgixBase + path
+}
