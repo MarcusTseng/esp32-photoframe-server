@@ -56,19 +56,19 @@ type GoogleCalendarAuth struct {
 }
 
 type Device struct {
-	ID             uint    `gorm:"primaryKey" json:"id"`
-	Name           string  `json:"name"`
-	Host           string  `gorm:"index" json:"host"` // IP or Hostname
-	Width          int     `json:"width"`
-	Height         int     `json:"height"`
-	Orientation    string  `json:"orientation"`
-	BoardName      string  `json:"board_name"`
-	EnableCollage  bool    `json:"enable_collage"` // Per-device collage setting
-	ShowDate       bool    `json:"show_date"`
-	ShowPhotoDate  bool    `json:"show_photo_date"`
-	ShowWeather    bool    `json:"show_weather"`
-	WeatherLat     float64 `json:"weather_lat"`
-	WeatherLon     float64 `json:"weather_lon"`
+	ID            uint    `gorm:"primaryKey" json:"id"`
+	Name          string  `json:"name"`
+	Host          string  `gorm:"index" json:"host"` // IP or Hostname
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	Orientation   string  `json:"orientation"`
+	BoardName     string  `json:"board_name"`
+	EnableCollage bool    `json:"enable_collage"` // Per-device collage setting
+	ShowDate      bool    `json:"show_date"`
+	ShowPhotoDate bool    `json:"show_photo_date"`
+	ShowWeather   bool    `json:"show_weather"`
+	WeatherLat    float64 `json:"weather_lat"`
+	WeatherLon    float64 `json:"weather_lon"`
 	AIProvider    string  `gorm:"column:ai_provider" json:"ai_provider"`
 	AIModel       string  `gorm:"column:ai_model" json:"ai_model"`
 	AIPrompt      string  `gorm:"column:ai_prompt" json:"ai_prompt"`
@@ -140,7 +140,11 @@ type GenerativeState struct {
 type PublicArtServingHistory struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	DeviceID  uint      `gorm:"index:idx_pah_device_served,priority:1" json:"device_id"`
-	Source    string    `gorm:"column:source;not null" json:"source"` // e.g. "aic", "rijksmuseum"
+	Source    string    `gorm:"column:source;not null" json:"source"`         // e.g. "aic", "rijksmuseum"
 	ArtworkID string    `gorm:"column:artwork_id;not null" json:"artwork_id"` // e.g. "aic:12345"
 	ServedAt  time.Time `gorm:"index:idx_pah_device_served,priority:2" json:"served_at"`
+}
+
+func (PublicArtServingHistory) TableName() string {
+	return "public_art_serving_history"
 }

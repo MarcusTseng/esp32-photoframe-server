@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.7.5-public-art.9
+
+### Fixed
+- Public Art serving-history writes now use the same singular table name created by migration `000024` (`public_art_serving_history`), fixing `no such table: public_art_serving_histories` log errors after the add-on is upgraded.
+
 ## v1.7.5-public-art.8
 
 ### Fixed
