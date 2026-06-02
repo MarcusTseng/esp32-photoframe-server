@@ -14,7 +14,16 @@ RUN go mod download
 
 # Copy Source
 COPY backend/ ./backend/
-RUN CGO_ENABLED=1 go build -o photoframe-server ./backend
+
+# Build-time variables injected at image build time so /api/build-info
+# can prove which repo commit + version is running in the HA add-on.
+ARG VERSION="dev"
+ARG GIT_COMMIT="unknown"
+RUN echo "Building version=${VERSION} commit=${GIT_COMMIT}"
+RUN CGO_ENABLED=1 go build -ldflags "\
+  -X main.version=${VERSION} \
+  -X main.gitCommit=${GIT_COMMIT}" \
+  -o photoframe-server ./backend
 
 # Build Stage for Frontend
 FROM node:20-alpine AS frontend-builder

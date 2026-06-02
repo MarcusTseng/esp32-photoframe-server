@@ -17,11 +17,19 @@ import (
 )
 
 type AIGenerationService struct {
-	settings *SettingsService
+	settings   *SettingsService
+	httpClient *http.Client
 }
 
 func NewAIGenerationService(settings *SettingsService) *AIGenerationService {
-	return &AIGenerationService{settings: settings}
+	return &AIGenerationService{settings: settings, httpClient: &http.Client{Timeout: 120 * time.Second}}
+}
+
+func (s *AIGenerationService) client() *http.Client {
+	if s.httpClient != nil {
+		return s.httpClient
+	}
+	return &http.Client{Timeout: 120 * time.Second}
 }
 
 func (s *AIGenerationService) Generate(device *model.Device) (image.Image, error) {
@@ -54,6 +62,8 @@ func (s *AIGenerationService) Generate(device *model.Device) (image.Image, error
 		return s.generateOpenAI(device.AIPrompt, modelName, isPortrait)
 	case "google":
 		return s.generateGemini(device.AIPrompt, modelName, isPortrait, device.Width, device.Height)
+	case "minimax_global", "minimax_china":
+		return s.generateMiniMax(device.AIPrompt, modelName, isPortrait, provider)
 	default:
 		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
 	}
@@ -110,7 +120,7 @@ func (s *AIGenerationService) generateOpenAI(prompt, modelName string, isPortrai
 
 	fmt.Printf("OpenAI request: %s\n", string(jsonBody))
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := s.client()
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/images/generations", bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -178,6 +188,84 @@ func (s *AIGenerationService) generateOpenAI(prompt, modelName string, isPortrai
 	return img, nil
 }
 
+func (s *AIGenerationService) generateMiniMax(prompt, modelName string, isPortrait bool, provider string) (image.Image, error) {
+	apiKeySetting := "minimax_global_api_key"
+	endpoint := "https://api.minimax.io/v1/image_generation"
+	providerLabel := "MiniMax Global"
+	if provider == "minimax_china" {
+		apiKeySetting = "minimax_china_api_key"
+		endpoint = "https://api.minimaxi.com/v1/image_generation"
+		providerLabel = "MiniMax China"
+	}
+
+	apiKey, err := s.settings.Get(apiKeySetting)
+	if err != nil || apiKey == "" {
+		return nil, fmt.Errorf("%s API key not configured", providerLabel)
+	}
+
+	aspectRatio := "16:9"
+	if isPortrait {
+		aspectRatio = "9:16"
+	}
+
+	body := map[string]interface{}{
+		"model":           modelName,
+		"prompt":          prompt,
+		"aspect_ratio":    aspectRatio,
+		"response_format": "base64",
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := s.client()
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%s API request failed: %w", providerLabel, err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s API error %d: %s", providerLabel, resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Data struct {
+			ImageBase64 []string `json:"image_base64"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	if len(result.Data.ImageBase64) == 0 || result.Data.ImageBase64[0] == "" {
+		return nil, fmt.Errorf("no image data in %s response", providerLabel)
+	}
+
+	imgData, err := base64.StdEncoding.DecodeString(result.Data.ImageBase64[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 image: %w", err)
+	}
+	img, _, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image: %w", err)
+	}
+	return img, nil
+}
+
 func (s *AIGenerationService) generateGemini(prompt, modelName string, isPortrait bool, width, height int) (image.Image, error) {
 	apiKey, err := s.settings.Get("google_api_key")
 	if err != nil || apiKey == "" {
@@ -228,7 +316,7 @@ func (s *AIGenerationService) generateGemini(prompt, modelName string, isPortrai
 
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", modelName, apiKey)
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := s.client()
 	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)

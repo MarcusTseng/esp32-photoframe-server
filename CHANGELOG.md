@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.7.5-public-art.6
+
+### Added
+- Public Art serving history records which artwork was served to each device and avoids repeating the same artwork within the configurable deduplication window (default 24 hours).
+- `/api/build-info` exposes the running version, git commit, and build metadata so Home Assistant add-on users can verify which frontend/backend build is actually deployed.
+- AI Generation now supports MiniMax (China) and MiniMax (Global) image generation providers using `image-01`.
+
+### Fixed
+- Public Art candidate cards now render thumbnails with a plain eager `<img>` fallback instead of Vuetify lazy image loading, avoiding grey placeholder cards that never resolve in the Home Assistant ingress UI.
+- `index.html` is served with no-cache headers so Home Assistant add-on updates do not keep using stale frontend bundles.
+
 ## v1.7.5-public-art.5
 
 ### Fixed

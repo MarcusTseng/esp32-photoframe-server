@@ -32,8 +32,23 @@ type ServiceOptions struct {
 	ConfigProvider ConfigProvider
 	Settings       SettingsGetter
 	CacheDir       string
+	HistoryDB      DedupHistoryDB
 }
 
+// DedupHistoryDB abstracts the GORM database operations needed for serving-history
+// deduplication, so the service stays testable without a real DB.
+type DedupHistoryDB interface {
+	// Record adds a history entry for the given device/artwork. On DB error it logs
+	// but does not fail the image fetch.
+	Record(deviceID uint, source, artworkID string)
+	// IsRecentlyServed returns true if the given (deviceID, source, artworkID) tuple
+	// has been served within the given deduplication window (hours).
+	IsRecentlyServed(deviceID uint, source, artworkID string, hours int) bool
+	// Cleanup removes entries older than hours for the given device.
+	Cleanup(deviceID uint, hours int)
+}
+
+// Service can serve artwork from the Art Institute of Chicago or other providers.
 type Service struct {
 	provider       Provider
 	httpClient     *http.Client
@@ -41,6 +56,7 @@ type Service struct {
 	configProvider ConfigProvider
 	settings       SettingsGetter
 	cacheDir       string
+	historyDB      DedupHistoryDB
 }
 
 func NewService(opts ServiceOptions) *Service {
@@ -59,14 +75,15 @@ func NewService(opts ServiceOptions) *Service {
 		configProvider: opts.ConfigProvider,
 		settings:       opts.Settings,
 		cacheDir:       opts.CacheDir,
+		historyDB:      opts.HistoryDB,
 	}
 }
 
-func (s *Service) FetchImage() (image.Image, SelectedArtwork, error) {
-	return s.FetchImageWithComposition(0, 0)
+func (s *Service) FetchImage(deviceID uint) (image.Image, SelectedArtwork, error) {
+	return s.FetchImageWithComposition(deviceID, 0, 0)
 }
 
-func (s *Service) FetchImageWithComposition(targetW, targetH int) (image.Image, SelectedArtwork, error) {
+func (s *Service) FetchImageWithComposition(deviceID uint, targetW, targetH int) (image.Image, SelectedArtwork, error) {
 	artwork, ok, err := LoadSelectedArtwork(s.settings)
 	if err != nil {
 		return nil, SelectedArtwork{}, err
@@ -83,10 +100,12 @@ func (s *Service) FetchImageWithComposition(targetW, targetH int) (image.Image, 
 			}
 			img = ComposeImage(img, comp, targetW, targetH)
 		}
+		// Record serving for dedup even for manually-selected artwork
+		s.recordServing(deviceID, artwork.Candidate.Provider, artwork.Candidate.ID)
 		return img, artwork, nil
 	}
 
-	// Fall back to provider search
+	// Fall back to provider search with deduplication
 	if s.provider == nil {
 		return nil, SelectedArtwork{}, errors.New("publicart: provider is required")
 	}
@@ -94,14 +113,31 @@ func (s *Service) FetchImageWithComposition(targetW, targetH int) (image.Image, 
 	if err != nil {
 		return nil, SelectedArtwork{}, err
 	}
-	ranked, err := s.SearchCandidates(cfg, 1)
+	ranked, err := s.SearchCandidates(cfg, 10)
 	if err != nil {
 		return nil, SelectedArtwork{}, err
 	}
 	if len(ranked) == 0 {
 		return nil, SelectedArtwork{}, errors.New("publicart: no image candidates found")
 	}
-	candidate := ranked[0]
+
+	// Dedup: skip candidates recently served to this device
+	dedupHours := DedupHours(s.settings)
+	var candidate Candidate
+	candidateFound := false
+	for _, c := range ranked {
+		if s.historyDB != nil && dedupHours > 0 && s.historyDB.IsRecentlyServed(deviceID, c.Provider, c.ID, dedupHours) {
+			continue
+		}
+		candidate = c
+		candidateFound = true
+		break
+	}
+	if !candidateFound {
+		// All candidates recently served — allow repeat rather than error
+		candidate = ranked[0]
+	}
+
 	img, err := s.fetchArtworkImage(candidate)
 	if err != nil {
 		return nil, SelectedArtwork{}, err
@@ -110,6 +146,7 @@ func (s *Service) FetchImageWithComposition(targetW, targetH int) (image.Image, 
 	if targetW > 0 && targetH > 0 {
 		img = ComposeImage(img, DefaultComposition(), targetW, targetH)
 	}
+	s.recordServing(deviceID, candidate.Provider, candidate.ID)
 	return img, SelectedArtwork{Candidate: candidate, Composition: DefaultComposition()}, nil
 }
 
@@ -265,4 +302,18 @@ func (s *Service) cachePath(candidate Candidate) string {
 	}
 	h := sha256.Sum256([]byte(candidate.Provider + "\x00" + candidate.ID + "\x00" + candidate.ImageURL))
 	return filepath.Join(s.cacheDir, hex.EncodeToString(h[:])+".img")
+}
+
+// recordServing writes a serving history entry and cleans up old entries.
+// Errors are logged but do not propagate — dedup is best-effort.
+func (s *Service) recordServing(deviceID uint, source, artworkID string) {
+	if s.historyDB == nil || deviceID == 0 {
+		return
+	}
+	s.historyDB.Record(deviceID, source, artworkID)
+	// Also clean up entries older than dedup window for this device
+	hours := DedupHours(s.settings)
+	if hours > 0 {
+		s.historyDB.Cleanup(deviceID, hours)
+	}
 }

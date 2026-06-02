@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/db"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/handler"
@@ -18,6 +21,16 @@ import (
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	"gorm.io/gorm"
+)
+
+// Build-time variables — set via -ldflags at docker build time.
+// Examples:
+//   -ldflags "-X main.version=v1.7.5-public-art.5 -X main.gitCommit=$(git rev-parse --short HEAD)"
+var (
+	version    = "dev"
+	gitCommit  = "unknown"
+	buildTime  = time.Now().UTC().Format(time.RFC3339)
+	buildDesc  = fmt.Sprintf("%s @ %s", gitCommit, buildTime)
 )
 
 func main() {
@@ -185,6 +198,7 @@ func main() {
 		ConfigProvider: publicart.NewSettingsConfigProvider(settingsService),
 		Settings:       settingsService,
 		CacheDir:       filepath.Join(dataDir, "public_art_cache"),
+		HistoryDB:      publicart.NewDedupHistoryDB(database),
 	})
 
 	// Image-source registry: every image source — synthetic and library —
@@ -284,6 +298,17 @@ func main() {
 
 	// Public Health Check
 	e.GET("/api/status", h.HealthCheck)
+
+	// Build info endpoint — helps diagnose version mismatches between
+	// the installed HA add-on and the repo commit being tested.
+	e.GET("/api/build-info", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"version":    version,
+			"git_commit": gitCommit,
+			"build_time": buildTime,
+			"build_desc": buildDesc,
+		})
+	})
 	// Public Serve Thumbnail/Image (Actually Request says image endpoint SHOULD be protected)
 	// The user requested /image/:source to be protected.
 	// We need to support ?token= or Authorization header.
@@ -303,7 +328,6 @@ func main() {
 	// Protected API Routes
 	// 1. Protected API Group
 	protectedApi := e.Group("/api", authMiddleware)
-	protectedApi.GET("/settings", h.GetSettings)
 	protectedApi.GET("/settings", h.GetSettings)
 	protectedApi.POST("/settings", h.UpdateSettings)
 
@@ -382,6 +406,16 @@ func main() {
 	if staticDir == "" {
 		staticDir = "./static"
 	}
+
+	// index.html is cached by browsers behind HA ingress; it can point to a stale
+	// JS bundle even after the add-on is updated. Serve it with no-cache headers
+	// so HA users always get the latest frontend on each page load.
+	e.GET("/index.html", func(c echo.Context) error {
+		c.Response().Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		c.Response().Header().Set("Pragma", "no-cache")
+		c.Response().Header().Set("Expires", "0")
+		return c.File(filepath.Join(staticDir, "index.html"))
+	})
 
 	// 1. Serve specific assets folder
 	// This handles /assets/index-....js|css correctly with proper MIME types

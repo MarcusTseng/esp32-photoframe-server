@@ -10,7 +10,7 @@ A image server for the [ESP32 PhotoFrame](https://github.com/aitjcize/esp32-phot
     - **Telegram Bot**: Send photos directly to your frame via a Telegram bot.
     - **URL Proxy**: Display images from any URL.
     - **Public Art**: Display open-access artwork from museum collections (currently Art Institute of Chicago).
-    - **AI Generation**: Generate unique images using OpenAI (GPT Image, DALL-E) or Google Gemini.
+    - **AI Generation**: Generate unique images using OpenAI (GPT Image, DALL-E), Google Gemini, or MiniMax.
 - **Smart Image Processing**:
     - Automatic cropping to device aspect ratio (800x480 or 480x800).
     - **Smart Collage**: Automatically combines two landscape photos in portrait mode (or vice versa) to maximize screen usage.

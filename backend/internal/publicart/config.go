@@ -3,11 +3,13 @@ package publicart
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 const (
-	SettingsKeyConfig          = "public_art_config"
-	SettingsKeySelectedArtwork = "public_art_selected_candidate" // intentionally the old key for backward compat
+	SettingsKeyConfig            = "public_art_config"
+	SettingsKeySelectedArtwork   = "public_art_selected_candidate" // intentionally the old key for backward compat
+	SettingsKeyDedupHours        = "public_art_dedup_hours"
 )
 
 type Config struct {
@@ -174,4 +176,35 @@ func validateSelectedCandidate(candidate Candidate) error {
 		return errors.New("publicart: selected candidate image_url is required")
 	}
 	return nil
+}
+
+// DefaultDedupHours is the default deduplication window in hours.
+const DefaultDedupHours = 24
+
+// DedupHours returns the configured deduplication window in hours.
+// Returns DefaultDedupHours if not set or set to an invalid value.
+func DedupHours(settings SettingsGetter) int {
+	if settings == nil {
+		return DefaultDedupHours
+	}
+	val, err := settings.Get(SettingsKeyDedupHours)
+	if err != nil || val == "" {
+		return DefaultDedupHours
+	}
+	var hours int
+	if _, parseErr := fmt.Sscanf(val, "%d", &hours); parseErr != nil || hours < 0 {
+		return DefaultDedupHours
+	}
+	return hours
+}
+
+// SetDedupHours stores the deduplication window in hours.
+func SetDedupHours(settings SettingsSetter, hours int) error {
+	if settings == nil {
+		return errors.New("publicart: settings store is required")
+	}
+	if hours < 0 {
+		hours = 0
+	}
+	return settings.Set(SettingsKeyDedupHours, fmt.Sprintf("%d", hours))
 }

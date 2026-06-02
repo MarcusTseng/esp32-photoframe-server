@@ -798,7 +798,7 @@
                     class="mb-4"
                     density="compact"
                   >
-                    Generate images using AI (OpenAI or Google Gemini).
+                    Generate images using AI (OpenAI, Google Gemini, or MiniMax).
                     Configure API keys below, then set the prompt/model
                     per-device in the Edit Device dialog.
                   </v-alert>
@@ -853,6 +853,42 @@
                     >
                   </div>
 
+                  <v-text-field
+                    v-model="form.minimax_china_api_key"
+                    label="MiniMax China API Key"
+                    type="password"
+                    variant="outlined"
+                    class="mb-1"
+                    persistent-hint
+                  ></v-text-field>
+                  <div class="text-caption text-grey ml-2 mb-4">
+                    Uses <code>https://api.minimaxi.com</code>. Get your API key at
+                    <a
+                      href="https://platform.minimaxi.com"
+                      target="_blank"
+                      class="text-primary text-decoration-none"
+                      >platform.minimaxi.com</a
+                    >
+                  </div>
+
+                  <v-text-field
+                    v-model="form.minimax_global_api_key"
+                    label="MiniMax Global API Key"
+                    type="password"
+                    variant="outlined"
+                    class="mb-1"
+                    persistent-hint
+                  ></v-text-field>
+                  <div class="text-caption text-grey ml-2 mb-4">
+                    Uses <code>https://api.minimax.io</code>. Get your API key at
+                    <a
+                      href="https://platform.minimax.io"
+                      target="_blank"
+                      class="text-primary text-decoration-none"
+                      >platform.minimax.io</a
+                    >
+                  </div>
+
                   <v-btn color="primary" @click="save">Save API Keys</v-btn>
                 </v-card-text>
               </v-window-item>
@@ -870,6 +906,18 @@
                     step uses Art Institute of Chicago search; later steps will
                     add search UI, manual compose/crop, cache, and more museums.
                   </v-alert>
+
+                  <!-- Build/diagnostic info — helps verify which add-on version is running -->
+                  <v-chip
+                    v-if="buildInfo"
+                    size="x-small"
+                    color="grey"
+                    variant="tonal"
+                    class="mb-3"
+                  >
+                    <v-icon icon="mdi-information" start size="x-small"></v-icon>
+                    PA build: {{ buildInfo.version }} / {{ buildInfo.git_commit }}
+                  </v-chip>
 
                   <v-text-field
                     :model-value="getImageUrl('public_art')"
@@ -1001,12 +1049,23 @@
                           lg="4"
                         >
                           <v-card variant="outlined" class="h-100 public-art-candidate-card">
-                            <v-img
-                              :src="publicArtThumbnailUrl(candidate)"
-                              height="180"
-                              cover
-                              class="bg-grey-lighten-3"
-                            ></v-img>
+                            <div class="public-art-thumb-frame bg-grey-lighten-3">
+                              <img
+                                v-if="!publicArtThumbnailErrors[candidate.id]"
+                                :src="publicArtThumbnailUrl(candidate)"
+                                :alt="candidate.title || 'Artwork thumbnail'"
+                                class="public-art-thumb-img"
+                                loading="eager"
+                                decoding="async"
+                                @error="publicArtThumbnailErrors[candidate.id] = true"
+                              />
+                              <div
+                                v-else
+                                class="public-art-thumb-error d-flex align-center justify-center"
+                              >
+                                <v-icon icon="mdi-image-broken-variant" size="48" color="grey-lighten-1"></v-icon>
+                              </div>
+                            </div>
                             <v-card-title class="text-subtitle-2 pb-1">
                               {{ candidate.title || 'Untitled artwork' }}
                             </v-card-title>
@@ -2228,6 +2287,8 @@
                             { title: 'None', value: '' },
                             { title: 'OpenAI', value: 'openai' },
                             { title: 'Google Gemini', value: 'google' },
+                            { title: 'MiniMax (China)', value: 'minimax_china' },
+                            { title: 'MiniMax (Global)', value: 'minimax_global' },
                           ]"
                           label="AI Provider"
                           variant="outlined"
@@ -2565,6 +2626,8 @@ const deviceConfig = reactive<Record<string, any>>({
   ha_url: '',
   openai_api_key: '',
   google_api_key: '',
+  minimax_china_api_key: '',
+  minimax_global_api_key: '',
 });
 
 // Device processing settings (synced remotely)
@@ -2985,6 +3048,8 @@ const aiModelOptionsForProvider = (provider: string | undefined) => {
       { title: 'Gemini 3 Pro Image', value: 'gemini-3-pro-image-preview' },
       { title: 'Gemini 2.5 Flash Image', value: 'gemini-2.5-flash-image' },
     ];
+  } else if (provider === 'minimax_china' || provider === 'minimax_global') {
+    return [{ title: 'MiniMax Image 01', value: 'image-01' }];
   }
   return [];
 };
@@ -3023,6 +3088,8 @@ watch(
         editingDevice.ai_model = 'gpt-image-1.5';
       } else if (newProvider === 'google') {
         editingDevice.ai_model = 'gemini-3.1-flash-image-preview';
+      } else if (newProvider === 'minimax_china' || newProvider === 'minimax_global') {
+        editingDevice.ai_model = 'image-01';
       } else {
         editingDevice.ai_model = '';
       }
@@ -3295,6 +3362,7 @@ type PublicArtComposition = {
 };
 
 const publicArtCandidates = ref<PublicArtCandidate[]>([]);
+const publicArtThumbnailErrors = reactive<Record<string, boolean>>({});
 const publicArtSearching = ref(false);
 const publicArtSearched = ref(false);
 const publicArtSearchError = ref('');
@@ -3354,6 +3422,8 @@ const form = reactive({
   telegram_target_device_id: [] as number[],
   openai_api_key: '',
   google_api_key: '',
+  minimax_china_api_key: '',
+  minimax_global_api_key: '',
   public_art_query: 'art',
   public_art_orientation: 'auto',
   public_art_min_image_long_edge: 1600,
@@ -3430,6 +3500,9 @@ const searchPublicArt = async () => {
   publicArtSearching.value = true;
   publicArtSearched.value = true;
   publicArtSearchError.value = '';
+  Object.keys(publicArtThumbnailErrors).forEach((key) => {
+    delete publicArtThumbnailErrors[key];
+  });
   try {
     const response = await api.post('/public-art/search', {
       ...publicArtConfigFromForm(),
@@ -3616,6 +3689,8 @@ onMounted(async () => {
     ),
     openai_api_key: store.settings.openai_api_key || '',
     google_api_key: store.settings.google_api_key || '',
+    minimax_china_api_key: store.settings.minimax_china_api_key || '',
+    minimax_global_api_key: store.settings.minimax_global_api_key || '',
   });
   applyPublicArtConfig(store.settings.public_art_config);
 
@@ -3711,6 +3786,8 @@ const saveSettingsInternal = async () => {
     ),
     openai_api_key: form.openai_api_key,
     google_api_key: form.google_api_key,
+    minimax_china_api_key: form.minimax_china_api_key,
+    minimax_global_api_key: form.minimax_global_api_key,
     public_art_config: JSON.stringify(publicArtConfigFromForm()),
   });
 };
@@ -4161,5 +4238,24 @@ const getDeviceFromUA = (ua: string) => {
 .color-swatch {
   height: 60px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.public-art-thumb-frame {
+  height: 180px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.public-art-thumb-img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.public-art-thumb-error {
+  height: 180px;
+  width: 100%;
 }
 </style>

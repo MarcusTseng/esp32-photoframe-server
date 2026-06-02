@@ -43,7 +43,7 @@ func TestServiceFetchImageSearchesRanksAndDecodesImage(t *testing.T) {
 		Config:     DefaultConfig(),
 	})
 
-	img, selected, err := svc.FetchImage()
+	img, selected, err := svc.FetchImage(0)
 	if err != nil {
 		t.Fatalf("FetchImage returned error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestServiceFetchImageReturnsErrorWhenNoCandidates(t *testing.T) {
 		Provider: provider,
 		Config:   DefaultConfig(),
 	})
-	_, _, err := svc.FetchImage()
+	_, _, err := svc.FetchImage(0)
 	if err == nil {
 		t.Fatal("FetchImage returned nil error for no candidates")
 	}
@@ -89,10 +89,10 @@ func TestServiceFetchImageUsesLatestConfigFromProvider(t *testing.T) {
 		ConfigProvider: cfgProvider,
 	})
 
-	if _, _, err := svc.FetchImage(); err != nil {
+	if _, _, err := svc.FetchImage(0); err != nil {
 		t.Fatalf("first FetchImage returned error: %v", err)
 	}
-	if _, _, err := svc.FetchImage(); err != nil {
+	if _, _, err := svc.FetchImage(0); err != nil {
 		t.Fatalf("second FetchImage returned error: %v", err)
 	}
 	if got, want := provider.queries, []string{"monet", "hokusai"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
@@ -144,7 +144,7 @@ func TestServiceFetchImageSelectedCandidateBypassesProviderAndUsesCache(t *testi
 		CacheDir:   t.TempDir(),
 	})
 
-	_, got, err := svc.FetchImage()
+	_, got, err := svc.FetchImage(0)
 	if err != nil {
 		t.Fatalf("first FetchImage returned error: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestServiceFetchImageSelectedCandidateBypassesProviderAndUsesCache(t *testi
 		t.Fatalf("requests after first fetch = %d, want 1", requests)
 	}
 
-	if _, _, err := svc.FetchImage(); err != nil {
+	if _, _, err := svc.FetchImage(0); err != nil {
 		t.Fatalf("second FetchImage returned error: %v", err)
 	}
 	if requests != 1 {
@@ -185,7 +185,7 @@ func TestServiceFetchImageBadCacheFallsBackToDownload(t *testing.T) {
 		t.Fatalf("write bad cache: %v", err)
 	}
 
-	if _, _, err := svc.FetchImage(); err != nil {
+	if _, _, err := svc.FetchImage(0); err != nil {
 		t.Fatalf("FetchImage returned error: %v", err)
 	}
 	if requests != 1 {
@@ -212,7 +212,7 @@ func TestServiceFetchImageFallsBackToThumbnailDataURL(t *testing.T) {
 	}
 	svc := NewService(ServiceOptions{HTTPClient: imageServer.Client(), Settings: store})
 
-	img, got, err := svc.FetchImage()
+	img, got, err := svc.FetchImage(0)
 	if err != nil {
 		t.Fatalf("FetchImage returned error: %v", err)
 	}
