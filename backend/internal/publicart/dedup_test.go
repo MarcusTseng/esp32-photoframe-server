@@ -55,6 +55,20 @@ func (f *fakeDedupDB) Cleanup(deviceID uint, hours int) {
 	f.entries = kept
 }
 
+func (f *fakeDedupDB) CleanupExpired(hours int) {
+	if hours <= 0 {
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+	kept := f.entries[:0]
+	for _, e := range f.entries {
+		if e.ServedAt.After(cutoff) {
+			kept = append(kept, e)
+		}
+	}
+	f.entries = kept
+}
+
 // localFakeSettingsStore is package-local, distinct from config_test.go's fakeSettingsStore.
 type localFakeSettingsStore struct {
 	Data map[string]string
@@ -65,7 +79,7 @@ func newLocalFakeSettingsStore() *localFakeSettingsStore {
 }
 
 func (s *localFakeSettingsStore) Get(key string) (string, error) { return s.Data[key], nil }
-func (s *localFakeSettingsStore) Set(key, value string) error     { s.Data[key] = value; return nil }
+func (s *localFakeSettingsStore) Set(key, value string) error    { s.Data[key] = value; return nil }
 
 // TestDedupHoursDefault verifies the default dedup window is 24 hours.
 func TestDedupHoursDefault(t *testing.T) {
@@ -161,6 +175,45 @@ func TestFakeDedupDBCleanup(t *testing.T) {
 	}
 }
 
+// TestFakeDedupDBCleanupExpired removes old entries across all devices.
+func TestFakeDedupDBCleanupExpired(t *testing.T) {
+	db := &fakeDedupDB{
+		entries: []model.PublicArtServingHistory{
+			{DeviceID: 1, Source: "aic", ArtworkID: "old-1", ServedAt: time.Now().Add(-31 * 24 * time.Hour)},
+			{DeviceID: 2, Source: "aic", ArtworkID: "old-2", ServedAt: time.Now().Add(-31 * 24 * time.Hour)},
+			{DeviceID: 1, Source: "aic", ArtworkID: "new-1", ServedAt: time.Now()},
+		},
+	}
+	db.CleanupExpired(DefaultHistoryRetentionHours)
+	if len(db.entries) != 1 {
+		t.Fatalf("CleanupExpired kept %d entries, want 1", len(db.entries))
+	}
+	if db.entries[0].ArtworkID != "new-1" {
+		t.Fatalf("CleanupExpired kept %q, want new-1", db.entries[0].ArtworkID)
+	}
+}
+
+// TestRecordServingCleansExpiredHistoryWhenDedupDisabled verifies history is capped even when dedup is disabled.
+func TestRecordServingCleansExpiredHistoryWhenDedupDisabled(t *testing.T) {
+	db := &fakeDedupDB{
+		entries: []model.PublicArtServingHistory{
+			{DeviceID: 2, Source: "aic", ArtworkID: "stale-other-device", ServedAt: time.Now().Add(-31 * 24 * time.Hour)},
+		},
+	}
+	store := newLocalFakeSettingsStore()
+	store.Data[SettingsKeyDedupHours] = "0"
+	svc := NewService(ServiceOptions{Settings: store, HistoryDB: db})
+
+	svc.recordServing(1, "aic", "fresh")
+
+	if len(db.entries) != 1 {
+		t.Fatalf("recordServing with dedup disabled kept %d entries, want 1", len(db.entries))
+	}
+	if db.entries[0].ArtworkID != "fresh" {
+		t.Fatalf("recordServing kept %q, want fresh", db.entries[0].ArtworkID)
+	}
+}
+
 // TestDedupWithFakeDB verifies service skips recently-served artwork.
 func TestDedupWithFakeDB(t *testing.T) {
 	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -241,5 +294,19 @@ func TestGormDedupHistoryDBIntegration(t *testing.T) {
 	hdb.Cleanup(1, 24*30)
 	if !hdb.IsRecentlyServed(1, "aic", "aic:100", 24) {
 		t.Fatal("after generous cleanup, aic:100 should still be present")
+	}
+
+	old := model.PublicArtServingHistory{
+		DeviceID:  2,
+		Source:    "aic",
+		ArtworkID: "old-global",
+		ServedAt:  time.Now().Add(-31 * 24 * time.Hour),
+	}
+	if err := db.Create(&old).Error; err != nil {
+		t.Fatalf("failed to seed old history: %v", err)
+	}
+	hdb.CleanupExpired(DefaultHistoryRetentionHours)
+	if hdb.IsRecentlyServed(2, "aic", "old-global", 24*365) {
+		t.Fatal("CleanupExpired should remove old history across devices")
 	}
 }

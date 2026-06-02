@@ -63,3 +63,15 @@ func (d *gormDedupHistoryDB) Cleanup(deviceID uint, hours int) {
 		log.Printf("publicart: failed to cleanup old history entries: %v", err)
 	}
 }
+
+// CleanupExpired removes history entries older than the retention window across all devices.
+func (d *gormDedupHistoryDB) CleanupExpired(hours int) {
+	if hours <= 0 {
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour)
+	if err := d.db.Where("served_at < ?", cutoff).
+		Delete(&model.PublicArtServingHistory{}).Error; err != nil {
+		log.Printf("publicart: failed to cleanup expired history entries: %v", err)
+	}
+}

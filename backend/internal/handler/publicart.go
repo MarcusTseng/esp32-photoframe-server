@@ -123,10 +123,7 @@ func (h *PublicArtHandler) Thumbnail(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate_image_url or candidate_thumbnail_url is required"})
 	}
 
-	data, err := h.downloadImage(imageURL)
-	if err != nil && thumbnailURL != "" {
-		data, err = h.downloadImage(thumbnailURL)
-	}
+	data, err := h.downloadBestAvailableImage(thumbnailURL, imageURL)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch thumbnail: " + err.Error()})
 	}
@@ -220,10 +217,7 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 		targetH = 400
 	}
 
-	data, err := h.downloadImage(imageURL)
-	if err != nil && thumbnailURL != "" {
-		data, err = h.downloadImage(thumbnailURL)
-	}
+	data, err := h.downloadBestAvailableImage(imageURL, thumbnailURL)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch image: " + err.Error()})
 	}
@@ -239,6 +233,20 @@ func (h *PublicArtHandler) Preview(c echo.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (h *PublicArtHandler) downloadBestAvailableImage(primaryURL, fallbackURL string) ([]byte, error) {
+	data, err := h.downloadImage(primaryURL)
+	if err == nil {
+		return data, nil
+	}
+	if fallbackURL != "" && fallbackURL != primaryURL {
+		fallbackData, fallbackErr := h.downloadImage(fallbackURL)
+		if fallbackErr == nil {
+			return fallbackData, nil
+		}
+	}
+	return nil, err
 }
 
 func (h *PublicArtHandler) downloadImage(imageURL string) ([]byte, error) {

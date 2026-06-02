@@ -25,12 +25,13 @@ import (
 
 // Build-time variables — set via -ldflags at docker build time.
 // Examples:
-//   -ldflags "-X main.version=v1.7.5-public-art.5 -X main.gitCommit=$(git rev-parse --short HEAD)"
+//
+//	-ldflags "-X main.version=v1.7.5-public-art.5 -X main.gitCommit=$(git rev-parse --short HEAD)"
 var (
-	version    = "dev"
-	gitCommit  = "unknown"
-	buildTime  = time.Now().UTC().Format(time.RFC3339)
-	buildDesc  = fmt.Sprintf("%s @ %s", gitCommit, buildTime)
+	version   = "dev"
+	gitCommit = "unknown"
+	buildTime = time.Now().UTC().Format(time.RFC3339)
+	buildDesc = fmt.Sprintf("%s @ %s", gitCommit, buildTime)
 )
 
 func main() {
@@ -321,9 +322,11 @@ func main() {
 	// Let's protect main image endpoint.
 	e.GET("/served-image-thumbnail/:id", ih.GetServedImageThumbnail)
 
-	// Public Art thumbnail — only fetches from public external URLs (Art Institute of Chicago IIIFF);
-	// no auth needed and no database writes.
+	// Public Art thumbnail/preview — only fetches from public external URLs (Art Institute of Chicago IIIF);
+	// no auth needed and no database writes. Preview is a GET image endpoint because
+	// browsers load it through an <img> tag, not an XHR POST.
 	e.GET("/api/public-art/thumbnail", pah.Thumbnail)
+	e.GET("/api/public-art/preview", pah.Preview)
 
 	// Protected API Routes
 	// 1. Protected API Group

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.5-public-art.7
+
+### Fixed
+- Public Art preview images now register a public `GET /api/public-art/preview` route, matching the browser `<img>` URL used by the compose panel.
+- Public Art thumbnails now prefer the low-resolution provider thumbnail first and fall back to the full artwork image only when needed, reducing failures when AIC full-size IIIF images are blocked.
+- `Use this artwork` now saves immediately with default composition instead of unexpectedly opening the crop controls; `Preview & crop` is visually emphasized as the crop entry point.
+- Public Art serving history now has a global retention cleanup so history does not grow unbounded when deduplication is disabled or devices stop requesting images.
+
 ## v1.7.5-public-art.6
 
 ### Added

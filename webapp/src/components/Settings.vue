@@ -1103,7 +1103,8 @@
                             <v-card-actions class="px-4 pb-4 pt-0 d-flex flex-wrap ga-2">
                               <v-btn
                                 size="small"
-                                variant="tonal"
+                                color="primary"
+                                variant="outlined"
                                 prepend-icon="mdi-crop"
                                 :loading="publicArtComposingId === candidate.id && publicArtPreviewLoading"
                                 @click="selectPublicArtCandidate(candidate)"
@@ -3538,7 +3539,7 @@ const openComposePanel = (candidate: PublicArtCandidate) => {
   publicArtComposition.background_color = '#ffffff';
   publicArtPreviewSourceUrl.value = candidate.image_url;
   publicArtPreviewThumbnailUrl.value = candidate.thumbnail_url || '';
-  publicArtPreviewUrl.value = candidate.thumbnail_url || candidate.image_url;
+  publicArtPreviewUrl.value = publicArtThumbnailUrl(candidate);
 };
 
 const closeComposePanel = () => {
@@ -3580,8 +3581,29 @@ const selectPublicArtCandidate = async (candidate: PublicArtCandidate) => {
 };
 
 const usePublicArtCandidate = async (candidate: PublicArtCandidate) => {
-  openComposePanel(candidate);
-  await confirmPublicArtSelection();
+  publicArtSelectingId.value = candidate.id;
+  try {
+    await api.post('/public-art/select', {
+      candidate,
+      composition: {
+        scale_mode: 'cover',
+        zoom: 1,
+        pan_x: 0,
+        pan_y: 0,
+        background_color: '#ffffff',
+      },
+    });
+    showMessage(
+      'Public art selection saved. Frames using /image/public_art will show this artwork.'
+    );
+  } catch (e: any) {
+    showMessage(
+      'Failed to select artwork: ' + (e.response?.data?.error || e.message),
+      true
+    );
+  } finally {
+    publicArtSelectingId.value = '';
+  }
 };
 
 const confirmPublicArtSelection = async () => {

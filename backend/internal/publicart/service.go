@@ -46,7 +46,15 @@ type DedupHistoryDB interface {
 	IsRecentlyServed(deviceID uint, source, artworkID string, hours int) bool
 	// Cleanup removes entries older than hours for the given device.
 	Cleanup(deviceID uint, hours int)
+	// CleanupExpired removes entries older than hours across all devices.
+	CleanupExpired(hours int)
 }
+
+// DefaultHistoryRetentionHours is the minimum retention cap for Public Art
+// serving history. Dedup uses a shorter default window (24h), but history is
+// still bounded so low-traffic or dedup-disabled setups do not accumulate rows
+// forever.
+const DefaultHistoryRetentionHours = 24 * 30
 
 // Service can serve artwork from the Art Institute of Chicago or other providers.
 type Service struct {
@@ -311,9 +319,18 @@ func (s *Service) recordServing(deviceID uint, source, artworkID string) {
 		return
 	}
 	s.historyDB.Record(deviceID, source, artworkID)
-	// Also clean up entries older than dedup window for this device
+	// Also clean up entries older than dedup window for this device.
 	hours := DedupHours(s.settings)
 	if hours > 0 {
 		s.historyDB.Cleanup(deviceID, hours)
 	}
+
+	// Independently cap global history retention, even when dedup is disabled
+	// (hours == 0) or a device stops fetching images. If the user sets a dedup
+	// window longer than the default retention, retain enough data to honor it.
+	retentionHours := DefaultHistoryRetentionHours
+	if hours > retentionHours {
+		retentionHours = hours
+	}
+	s.historyDB.CleanupExpired(retentionHours)
 }
