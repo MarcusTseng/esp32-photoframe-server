@@ -3527,7 +3527,7 @@ const publicArtThumbnailUrl = (candidate: PublicArtCandidate) => {
   if (candidate.thumbnail_url) {
     params.set('candidate_thumbnail_url', candidate.thumbnail_url);
   }
-  return `/api/public-art/thumbnail?${params.toString()}`;
+  return `api/public-art/thumbnail?${params.toString()}`;
 };
 
 const openComposePanel = (candidate: PublicArtCandidate) => {
@@ -3567,7 +3567,7 @@ const updatePublicArtPreview = async () => {
       target_width: target.width,
       target_height: target.height,
     });
-    publicArtPreviewUrl.value = `/api/public-art/preview?${params.toString()}`;
+    publicArtPreviewUrl.value = `api/public-art/preview?${params.toString()}`;
   } catch (e: any) {
     publicArtPreviewError.value = e.message || 'Failed to load preview';
   } finally {

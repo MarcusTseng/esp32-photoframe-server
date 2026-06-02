@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.7.5-public-art.8
+
+### Fixed
+- Public Art thumbnail and preview image URLs are now relative to the current Home Assistant ingress path (`api/...`) instead of absolute root paths (`/api/...`), so image `<img>` requests reach the add-on backend under HA ingress.
+
 ## v1.7.5-public-art.7
 
 ### Fixed
