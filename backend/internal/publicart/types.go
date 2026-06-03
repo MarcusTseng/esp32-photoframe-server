@@ -2,6 +2,7 @@ package publicart
 
 const (
 	ProviderAIC = "aic"
+	ProviderCMA = "cma"
 )
 
 type Candidate struct {

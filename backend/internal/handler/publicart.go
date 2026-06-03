@@ -124,7 +124,7 @@ func (h *PublicArtHandler) Thumbnail(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "candidate_image_url or candidate_thumbnail_url is required"})
 	}
 
-	data, err := h.downloadBestAvailableImage(thumbnailURL, imageURL)
+	data, err := h.downloadBestAvailableImage(imageURL, thumbnailURL)
 	if err != nil {
 		log.Printf("[publicart] thumbnail: failed to fetch image (image_url=%s, thumbnail_url=%s): %v", imageURL, thumbnailURL, err)
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "Failed to fetch thumbnail: " + err.Error()})

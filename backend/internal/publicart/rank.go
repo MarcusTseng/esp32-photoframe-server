@@ -3,7 +3,7 @@ package publicart
 import "sort"
 
 func RankCandidates(candidates []Candidate, cfg Config) []Candidate {
-	ranked := append([]Candidate(nil), candidates...)
+	ranked := filterCandidatesByOrientation(candidates, cfg.Orientation)
 	sort.SliceStable(ranked, func(i, j int) bool {
 		si := candidateScore(ranked[i], cfg)
 		sj := candidateScore(ranked[j], cfg)
@@ -13,6 +13,22 @@ func RankCandidates(candidates []Candidate, cfg Config) []Candidate {
 		return ranked[i].Title < ranked[j].Title
 	})
 	return ranked
+}
+
+func filterCandidatesByOrientation(candidates []Candidate, orientation string) []Candidate {
+	if orientation != "landscape" && orientation != "portrait" {
+		return append([]Candidate(nil), candidates...)
+	}
+	filtered := make([]Candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidateMatchesOrientation(candidate, orientation) {
+			filtered = append(filtered, candidate)
+		}
+	}
+	if len(filtered) == 0 {
+		return append([]Candidate(nil), candidates...)
+	}
+	return filtered
 }
 
 func candidateScore(c Candidate, cfg Config) int {

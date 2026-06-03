@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	SettingsKeyConfig            = "public_art_config"
-	SettingsKeySelectedArtwork   = "public_art_selected_candidate" // intentionally the old key for backward compat
-	SettingsKeyDedupHours        = "public_art_dedup_hours"
+	SettingsKeyConfig          = "public_art_config"
+	SettingsKeySelectedArtwork = "public_art_selected_candidate" // intentionally the old key for backward compat
+	SettingsKeyDedupHours      = "public_art_dedup_hours"
 )
 
 type Config struct {
@@ -72,6 +72,9 @@ func DefaultConfig() Config {
 func normalizeConfig(cfg Config) Config {
 	defaults := DefaultConfig()
 	if cfg.Provider == "" {
+		cfg.Provider = defaults.Provider
+	}
+	if cfg.Provider != ProviderAIC && cfg.Provider != ProviderCMA {
 		cfg.Provider = defaults.Provider
 	}
 	if cfg.Query == "" {

@@ -1,7 +1,7 @@
 ARG BUILD_FROM=node:20-alpine3.21
 
 # Build Stage for Go
-FROM golang:alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 

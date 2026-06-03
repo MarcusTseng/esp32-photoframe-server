@@ -195,7 +195,10 @@ func main() {
 	generativeService := service.NewGenerativeService(database)
 	// Initialize Public Art Service — server-side museum/open-access artwork.
 	publicArtService := publicart.NewService(publicart.ServiceOptions{
-		Provider:       publicart.NewAICProvider("", nil),
+		Provider: publicart.NewFallbackProvider(
+			publicart.NewCMAProvider("", nil),
+			publicart.NewAICProvider("", nil),
+		),
 		ConfigProvider: publicart.NewSettingsConfigProvider(settingsService),
 		Settings:       settingsService,
 		CacheDir:       filepath.Join(dataDir, "public_art_cache"),
