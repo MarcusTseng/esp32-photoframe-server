@@ -1017,7 +1017,7 @@
                         density="compact"
                         class="mb-4"
                       >
-                        To pick an artwork: click <strong>Preview & crop</strong> on a result, adjust the composition if needed, then click <strong>Use this artwork</strong>. Saving public art settings only saves the default query/ranking preferences.
+                        To lock one artwork on the frame: click <strong>Preview & crop</strong> on a result, adjust the composition if needed, then click <strong>Use this artwork</strong>. While a selection is locked, hourly device auto-rotate keeps serving that same artwork. Click <strong>Clear Selection</strong> to resume query-based rotation/dedup.
                       </v-alert>
 
                       <v-alert

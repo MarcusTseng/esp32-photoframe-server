@@ -102,7 +102,10 @@ func (r aicSearchResponse) Candidates() []Candidate {
 			continue
 		}
 		imageID := strings.TrimSpace(*item.ImageID)
-		thumbnailURL := fmt.Sprintf("%s/%s/full/600,/0/default.jpg", iiifURL, url.PathEscape(imageID))
+		thumbnailURL := strings.TrimSpace(item.Thumbnail.LQIP)
+		if thumbnailURL == "" {
+			thumbnailURL = fmt.Sprintf("%s/%s/full/600,/0/default.jpg", iiifURL, url.PathEscape(imageID))
+		}
 		candidates = append(candidates, Candidate{
 			Provider:     ProviderAIC,
 			ID:           fmt.Sprintf("aic:%d", item.ID),
