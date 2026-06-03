@@ -35,8 +35,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Query != "art" {
 		t.Fatalf("Query = %q, want art", cfg.Query)
 	}
-	if cfg.Provider != ProviderAIC {
-		t.Fatalf("Provider = %q, want %q", cfg.Provider, ProviderAIC)
+	if cfg.Provider != ProviderCMA {
+		t.Fatalf("Provider = %q, want %q", cfg.Provider, ProviderCMA)
 	}
 	if cfg.MinImageLongEdge != 1600 {
 		t.Fatalf("MinImageLongEdge = %d, want 1600", cfg.MinImageLongEdge)
@@ -58,8 +58,8 @@ func TestSettingsConfigProviderMergesStoredJSONWithDefaults(t *testing.T) {
 	if cfg.Query != "monet" {
 		t.Fatalf("Query = %q, want monet", cfg.Query)
 	}
-	if cfg.Provider != ProviderAIC {
-		t.Fatalf("Provider = %q, want default %q", cfg.Provider, ProviderAIC)
+	if cfg.Provider != ProviderCMA {
+		t.Fatalf("Provider = %q, want default %q", cfg.Provider, ProviderCMA)
 	}
 	if cfg.MinImageLongEdge != 1800 {
 		t.Fatalf("MinImageLongEdge = %d, want 1800", cfg.MinImageLongEdge)
@@ -114,6 +114,23 @@ func TestRankCandidatesPrefersRequestedOrientation(t *testing.T) {
 	ranked = RankCandidates(candidates, Config{Orientation: "landscape", MinImageLongEdge: 1000, PreferredImageLongEdge: 1000})
 	if ranked[0].ID != "landscape" {
 		t.Fatalf("top landscape-ranked candidate = %q, want landscape; ranked=%#v", ranked[0].ID, ranked)
+	}
+}
+
+func TestRankCandidatesFiltersRequestedOrientation(t *testing.T) {
+	candidates := []Candidate{
+		{ID: "portrait", Title: "Portrait", ImageURL: "https://example.test/p.jpg", Width: 1200, Height: 2000},
+		{ID: "landscape", Title: "Landscape", ImageURL: "https://example.test/l.jpg", Width: 2000, Height: 1200},
+	}
+
+	ranked := RankCandidates(candidates, Config{Orientation: "landscape", MinImageLongEdge: 1000, PreferredImageLongEdge: 1000})
+	if len(ranked) != 1 || ranked[0].ID != "landscape" {
+		t.Fatalf("landscape ranked = %#v, want only landscape", ranked)
+	}
+
+	ranked = RankCandidates(candidates[:1], Config{Orientation: "landscape", MinImageLongEdge: 1000, PreferredImageLongEdge: 1000})
+	if len(ranked) != 0 {
+		t.Fatalf("landscape ranked with no landscape = %#v, want empty", ranked)
 	}
 }
 

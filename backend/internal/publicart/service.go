@@ -167,9 +167,26 @@ func (s *Service) SearchCandidates(cfg Config, limit int) ([]Candidate, error) {
 	if searchLimit < 10 {
 		searchLimit = 10
 	}
+	if cfg.Orientation == "landscape" || cfg.Orientation == "portrait" {
+		// Museum search APIs do not necessarily rank by orientation. Over-fetch so
+		// the orientation filter has enough candidates to choose from instead of
+		// falling back to the wrong aspect ratio.
+		if searchLimit < limit*5 {
+			searchLimit = limit * 5
+		}
+		if searchLimit < 50 {
+			searchLimit = 50
+		}
+	}
 	candidates, err := s.provider.Search(cfg.Query, SearchOptions{Limit: searchLimit})
 	if err != nil {
 		return nil, err
+	}
+	if len(candidates) == 0 && cfg.Query != DefaultConfig().Query {
+		candidates, err = s.provider.Search(DefaultConfig().Query, SearchOptions{Limit: searchLimit})
+		if err != nil {
+			return nil, err
+		}
 	}
 	ranked := RankCandidates(candidates, cfg)
 	if limit > 0 && len(ranked) > limit {

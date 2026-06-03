@@ -14,11 +14,30 @@ type fakeProvider struct {
 	candidates []Candidate
 	err        error
 	queries    []string
+	limits     []int
 }
 
 func (p *fakeProvider) Search(query string, opts SearchOptions) ([]Candidate, error) {
 	p.queries = append(p.queries, query)
+	p.limits = append(p.limits, opts.Limit)
 	return p.candidates, p.err
+}
+
+type sequenceProvider struct {
+	responses [][]Candidate
+	queries   []string
+	limits    []int
+}
+
+func (p *sequenceProvider) Search(query string, opts SearchOptions) ([]Candidate, error) {
+	p.queries = append(p.queries, query)
+	p.limits = append(p.limits, opts.Limit)
+	if len(p.responses) == 0 {
+		return nil, nil
+	}
+	resp := p.responses[0]
+	p.responses = p.responses[1:]
+	return resp, nil
 }
 
 func TestServiceFetchImageSearchesRanksAndDecodesImage(t *testing.T) {
@@ -120,6 +139,43 @@ func TestServiceSearchCandidatesRanksAndLimitsResults(t *testing.T) {
 	}
 	if candidates[0].ID != "large" || candidates[1].ID != "minimum" {
 		t.Fatalf("candidate order = %#v, want large then minimum", candidates)
+	}
+}
+
+func TestServiceSearchCandidatesFallsBackToDefaultQueryWhenProviderReturnsEmpty(t *testing.T) {
+	provider := &sequenceProvider{responses: [][]Candidate{
+		{},
+		{{ID: "fallback", Title: "Fallback", Width: 3000, Height: 2000}},
+	}}
+	svc := NewService(ServiceOptions{Provider: provider, Config: DefaultConfig()})
+
+	candidates, err := svc.SearchCandidates(Config{Provider: ProviderCMA, Query: "no exact match", MinImageLongEdge: 1600, PreferredImageLongEdge: 2000}, 2)
+	if err != nil {
+		t.Fatalf("SearchCandidates returned error: %v", err)
+	}
+	if got, want := provider.queries, []string{"no exact match", "art"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("provider queries = %#v, want %#v", got, want)
+	}
+	if len(candidates) != 1 || candidates[0].ID != "fallback" {
+		t.Fatalf("candidates = %#v, want fallback candidate", candidates)
+	}
+}
+
+func TestServiceSearchCandidatesOverfetchesForOrientation(t *testing.T) {
+	provider := &fakeProvider{candidates: []Candidate{
+		{ID: "landscape", Title: "Landscape", Width: 3000, Height: 2000},
+	}}
+	svc := NewService(ServiceOptions{Provider: provider, Config: DefaultConfig()})
+
+	candidates, err := svc.SearchCandidates(Config{Provider: ProviderCMA, Query: "art", Orientation: "landscape", MinImageLongEdge: 1600, PreferredImageLongEdge: 2000}, 2)
+	if err != nil {
+		t.Fatalf("SearchCandidates returned error: %v", err)
+	}
+	if got, want := provider.limits[0], 50; got != want {
+		t.Fatalf("provider limit = %d, want %d", got, want)
+	}
+	if len(candidates) != 1 || candidates[0].ID != "landscape" {
+		t.Fatalf("candidates = %#v, want landscape candidate", candidates)
 	}
 }
 

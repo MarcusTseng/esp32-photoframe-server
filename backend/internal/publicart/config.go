@@ -62,7 +62,7 @@ func (p *SettingsConfigProvider) PublicArtConfig() (Config, error) {
 
 func DefaultConfig() Config {
 	return Config{
-		Provider:               ProviderAIC,
+		Provider:               ProviderCMA,
 		Query:                  "art",
 		MinImageLongEdge:       1600,
 		PreferredImageLongEdge: 2000,

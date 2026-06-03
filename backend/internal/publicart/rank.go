@@ -25,9 +25,6 @@ func filterCandidatesByOrientation(candidates []Candidate, orientation string) [
 			filtered = append(filtered, candidate)
 		}
 	}
-	if len(filtered) == 0 {
-		return append([]Candidate(nil), candidates...)
-	}
 	return filtered
 }
 
