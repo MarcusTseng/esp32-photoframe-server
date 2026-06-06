@@ -1164,12 +1164,38 @@
                               <v-select
                                 v-model="publicArtComposition.scale_mode"
                                 label="Scale mode"
-                                :items="[{title:'Cover (crop to fill)',value:'cover'},{title:'Fit (letterbox)',value:'fit'}]"
+                                :items="[{title:'Cover (crop to fill)',value:'cover'},{title:'Fit (show whole image)',value:'fit'}]"
                                 variant="outlined"
                                 density="compact"
                                 class="mb-2"
                                 @update:model-value="updatePublicArtPreview"
                               ></v-select>
+                              <div
+                                v-if="publicArtComposition.scale_mode === 'fit'"
+                                class="d-flex align-center flex-wrap ga-2 mb-3"
+                              >
+                                <span class="text-caption text-medium-emphasis">
+                                  Fill empty area:
+                                </span>
+                                <v-btn-toggle
+                                  v-model="publicArtComposition.background_color"
+                                  density="compact"
+                                  mandatory
+                                  @update:model-value="updatePublicArtPreview"
+                                >
+                                  <v-btn value="#ffffff" size="small">White</v-btn>
+                                  <v-btn value="#000000" size="small">Black</v-btn>
+                                </v-btn-toggle>
+                                <v-text-field
+                                  v-model="publicArtComposition.background_color"
+                                  label="Custom"
+                                  variant="outlined"
+                                  density="compact"
+                                  hide-details
+                                  style="max-width: 130px"
+                                  @change="updatePublicArtPreview"
+                                ></v-text-field>
+                              </div>
                               <v-slider
                                 v-model="publicArtComposition.zoom"
                                 label="Zoom"
@@ -1208,14 +1234,29 @@
                                   ></v-text-field>
                                 </v-col>
                               </v-row>
-                              <v-text-field
-                                v-model="publicArtComposition.background_color"
-                                label="Background color"
-                                variant="outlined"
-                                density="compact"
-                                class="mb-2"
-                                @end="updatePublicArtPreview"
-                              ></v-text-field>
+                              <v-divider class="my-3"></v-divider>
+                              <div class="d-flex align-center flex-wrap ga-2 mb-2">
+                                <v-select
+                                  v-model="publicArtPushDeviceId"
+                                  :items="availableDevices"
+                                  item-title="name"
+                                  item-value="id"
+                                  label="Target device"
+                                  variant="outlined"
+                                  density="compact"
+                                  hide-details
+                                  style="min-width: 220px"
+                                ></v-select>
+                                <v-btn
+                                  color="success"
+                                  prepend-icon="mdi-send"
+                                  :loading="publicArtPushing"
+                                  :disabled="!publicArtPushDeviceId || publicArtPushing"
+                                  @click="pushComposedPublicArtToDevice"
+                                >
+                                  Push Image
+                                </v-btn>
+                              </div>
                               <div class="d-flex ga-2 mt-2">
                                 <v-btn
                                   variant="tonal"
@@ -2487,6 +2528,7 @@ import {
   listCalendars,
   googleCalendarLogin,
   googleCalendarLogout,
+  pushPublicArtToDevice,
 } from '../api';
 import Gallery from './Gallery.vue';
 import ConfirmDialog from './ConfirmDialog.vue';
@@ -3381,6 +3423,8 @@ const publicArtSearched = ref(false);
 const publicArtSearchError = ref('');
 const publicArtSelectingId = ref('');
 const publicArtClearing = ref(false);
+const publicArtPushing = ref(false);
+const publicArtPushDeviceId = ref<number | null>(null);
 const publicArtComposingId = ref('');
 const publicArtPreviewSourceUrl = ref('');
 const publicArtPreviewThumbnailUrl = ref('');
@@ -3555,6 +3599,9 @@ const openComposePanel = (candidate: PublicArtCandidate) => {
   publicArtComposition.pan_x = 0;
   publicArtComposition.pan_y = 0;
   publicArtComposition.background_color = '#ffffff';
+  if (!publicArtPushDeviceId.value && availableDevices.value.length === 1) {
+    publicArtPushDeviceId.value = availableDevices.value[0].id;
+  }
   publicArtPreviewSourceUrl.value = candidate.image_url;
   publicArtPreviewThumbnailUrl.value = candidate.thumbnail_url || '';
   publicArtPreviewUrl.value = publicArtThumbnailUrl(candidate);
@@ -3704,6 +3751,28 @@ const confirmPublicArtSelection = async () => {
     );
   } finally {
     publicArtSelectingId.value = '';
+  }
+};
+
+const pushComposedPublicArtToDevice = async () => {
+  if (!publicArtComposingId.value || !publicArtPushDeviceId.value) return;
+  const candidate = publicArtCandidates.value.find(c => c.id === publicArtComposingId.value);
+  if (!candidate) return;
+  publicArtPushing.value = true;
+  try {
+    await pushPublicArtToDevice(
+      publicArtPushDeviceId.value,
+      candidate,
+      { ...publicArtComposition }
+    );
+    showMessage(`Public art pushed to ${getDeviceName(publicArtPushDeviceId.value)}.`);
+  } catch (e: any) {
+    showMessage(
+      'Failed to push artwork: ' + (e.response?.data?.error || e.message),
+      true
+    );
+  } finally {
+    publicArtPushing.value = false;
   }
 };
 

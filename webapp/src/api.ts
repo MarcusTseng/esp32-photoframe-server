@@ -166,6 +166,20 @@ export const pushToDevice = async (deviceID: number, imageID: number) => {
   return response.data;
 };
 
+export const pushPublicArtToDevice = async (
+  deviceID: number,
+  candidate: unknown,
+  composition: unknown
+) => {
+  const response = await api.post(`/devices/${deviceID}/push`, {
+    public_art: {
+      candidate,
+      composition,
+    },
+  });
+  return response.data;
+};
+
 export const getDeviceConfig = async (id: number) => {
   const response = await api.get(`/devices/${id}/config`);
   return response.data;

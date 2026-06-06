@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"fmt"
+	"image"
 	"net/http"
 	"os"
 	"strconv"
@@ -10,6 +12,7 @@ import (
 	"io/ioutil"
 
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/model"
+	"github.com/aitjcize/esp32-photoframe-server/backend/internal/publicart"
 	"github.com/aitjcize/esp32-photoframe-server/backend/internal/service"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -145,8 +148,12 @@ func (h *DeviceHandler) DeleteDevice(c echo.Context) error {
 func (h *DeviceHandler) PushToDevice(c echo.Context) error {
 	deviceID, _ := strconv.Atoi(c.Param("id"))
 	var req struct {
-		ImageID uint   `json:"image_id"`
-		URL     string `json:"url"` // Optional direct URL/Path
+		ImageID   uint   `json:"image_id"`
+		URL       string `json:"url"` // Optional direct server-side file path
+		PublicArt *struct {
+			Candidate   publicart.Candidate   `json:"candidate"`
+			Composition publicart.Composition `json:"composition"`
+		} `json:"public_art"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
@@ -205,6 +212,18 @@ func (h *DeviceHandler) PushToDevice(c echo.Context) error {
 		} else {
 			imagePath = img.FilePath
 		}
+	} else if req.PublicArt != nil {
+		composedPath, err := h.composePublicArtForDevice(
+			uint(deviceID),
+			req.PublicArt.Candidate,
+			req.PublicArt.Composition,
+		)
+		if err != nil {
+			return c.JSON(http.StatusBadGateway, map[string]string{"error": err.Error()})
+		}
+		defer os.Remove(composedPath)
+		tempFile = composedPath
+		imagePath = tempFile
 	}
 
 	if imagePath == "" {
@@ -227,4 +246,85 @@ func (h *DeviceHandler) PushToDevice(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "pushed"})
+}
+
+func (h *DeviceHandler) composePublicArtForDevice(deviceID uint, candidate publicart.Candidate, comp publicart.Composition) (string, error) {
+	if candidate.ImageURL == "" {
+		return "", fmt.Errorf("public art image_url is required")
+	}
+
+	var device model.Device
+	if err := h.db.First(&device, deviceID).Error; err != nil {
+		return "", fmt.Errorf("device not found")
+	}
+
+	targetW, targetH := device.Width, device.Height
+	if targetW <= 0 || targetH <= 0 {
+		targetW, targetH = 800, 480
+	}
+	if device.Orientation == "portrait" && targetW > targetH {
+		targetW, targetH = targetH, targetW
+	} else if device.Orientation == "landscape" && targetW < targetH {
+		targetW, targetH = targetH, targetW
+	}
+
+	data, err := downloadPublicArtImage(candidate.ImageURL, candidate.ThumbnailURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch public art image: %w", err)
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode public art image: %w", err)
+	}
+	if comp.ScaleMode == "" {
+		comp = publicart.DefaultComposition()
+	}
+	composed := publicart.ComposeImage(img, comp, targetW, targetH)
+
+	tmp, err := ioutil.TempFile("", "public_art_push_*.png")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file")
+	}
+	if err := publicart.EncodeImage(tmp, composed, "png"); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		return "", fmt.Errorf("failed to encode public art image: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmp.Name())
+		return "", fmt.Errorf("failed to close temp file: %w", err)
+	}
+	return tmp.Name(), nil
+}
+
+func downloadPublicArtImage(primaryURL, fallbackURL string) ([]byte, error) {
+	if data, err := downloadPublicHTTPImage(primaryURL); err == nil {
+		return data, nil
+	}
+	if imgixURL := publicart.TryImgixFallback(primaryURL); imgixURL != "" {
+		if data, err := downloadPublicHTTPImage(imgixURL); err == nil {
+			return data, nil
+		}
+	}
+	if fallbackURL != "" && fallbackURL != primaryURL {
+		if data, err := downloadPublicHTTPImage(fallbackURL); err == nil {
+			return data, nil
+		}
+	}
+	return nil, fmt.Errorf("all public art image URLs failed")
+}
+
+func downloadPublicHTTPImage(url string) ([]byte, error) {
+	if url == "" {
+		return nil, fmt.Errorf("empty URL")
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return ioutil.ReadAll(resp.Body)
 }
