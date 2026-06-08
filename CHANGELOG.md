@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.7.6-public-art.1
+
+### Changed
+- Rebased the Public Art add-on variant onto upstream `v1.7.6`, including Immich sync modes, image source registry refactor, Home Assistant add-on branding assets, gallery EXIF auto-orient handling, and smart collage slot-shape fix.
+
+## v1.7.6
+
+### Added
+- Immich sync gained per-server **Sync Mode** in Settings: `album` (default, existing behavior), `all` (entire library via `/api/search/metadata`), `favorites` (Immich Favorites), and `memories` ("on this day" assets via `/api/memories`). The album picker only renders when mode is `album`. Closes #32
+- Home Assistant add-on store now ships an `icon.png` (128×128 tile) and `logo.png` (250×100 banner) rendered from the firmware project's icon, so the add-on shares the brand mark with the rest of the ecosystem
+
+### Changed
+- Image source dispatch refactored into a flat plugin registry (`internal/imagesource.Source` + `Registry`). Each of the eight sources (`ai_generation`, `fractal`, `dla`, `gallery`, `immich`, `synology_photos`, `google_photos`, `url_proxy`) is now its own ~30-line plugin file owning one source name; the handler does a single `registry.Fetch` with zero per-source branching. The four library-backed sources share `RunDBPhotoFlow` (exclusion-aware pick + smart collage + photo-date lookup) parameterized by per-source pick/load callbacks. Adding a new source is now one file plus one `main.go` registration. `handler/image.go` shrinks ~365 lines. Fractal and DLA generative algorithms ported from the standalone `fractalgen` and `dla` CLIs (contributor: Christopher Rowley)
+
+### Fixed
+- Gallery uploads from iPhone (and any source that writes EXIF `Orientation` instead of rotating pixels) showed up sideways on the device and in the gallery. Uploads and Google Photos sync now run `magick -auto-orient` to bake the orientation into the pixel grid and reset the tag to 1. Telegram, Immich, and Synology paths were already covered
+- Smart collage on a portrait device paired a landscape first photo with a portrait (not landscape) second photo, which `DrawCover` then cropped to a wide strip — and symmetrically on landscape devices. The second-photo query now targets the slot's shape (opposite of the device) instead of the device's own orientation
+
 ## v1.7.5-public-art.11
 - **Fix**: Thumbnail grid now loads IIIF URLs directly in browser (bypasses backend proxy), avoiding HA ingress fetch failures
 - **Fix**: Backend `downloadBestAvailableImage` now retries via imgix CDN (`img.artic.edu`) when direct AIC IIIF URL is unreachable
@@ -73,6 +91,7 @@
 - `DELETE /public-art/select` — clear selection and resume query-based rotation.
 - Public Art search panel in Settings UI: keyword search, ranked candidate grid, "Display on Frame" and "Clear Selection" buttons.
 - Device dialog shows the frame image fetch URL.
+
 
 ## v1.7.5
 
