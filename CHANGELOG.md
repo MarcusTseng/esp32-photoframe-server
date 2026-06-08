@@ -2,8 +2,30 @@
 
 ## v1.7.6-public-art.1
 
+This release rebases the Public Art add-on variant onto upstream `v1.7.6` and rolls the earlier Public Art work into one HA-visible release entry.
+
+### Added
+- Public Art image source for museum/open-collection artwork, including Art Institute of Chicago search, candidate ranking, cached image downloads, selected-artwork display, and query-based rotation.
+- Public Art search and selection UI in Settings with candidate cards, artwork metadata, thumbnails, `Use this artwork`, `Clear selection`, and `Preview & crop` actions.
+- Server-side Public Art composition pipeline with cover/fit/crop math, pan/zoom persistence, preview rendering, and frame-sized `/image/public_art` output.
+- Public Art serving-history migration and deduplication window so a device avoids repeating the same artwork within the configured interval.
+- `/api/build-info` endpoint exposing version, git commit, and build metadata for checking exactly which Home Assistant add-on build is running.
+- MiniMax China and MiniMax Global providers for AI Generation using `image-01`.
+- Upstream `v1.7.6` additions: Immich Sync Mode (`album`, `all`, `favorites`, `memories`) and Home Assistant add-on `icon.png` / `logo.png` branding assets.
+
 ### Changed
-- Rebased the Public Art add-on variant onto upstream `v1.7.6`, including Immich sync modes, image source registry refactor, Home Assistant add-on branding assets, gallery EXIF auto-orient handling, and smart collage slot-shape fix.
+- Public Art add-on version is now based on upstream `v1.7.6` as `v1.7.6-public-art.1`.
+- Public Art thumbnails and previews now prefer browser-direct/provider thumbnail URLs where reliable, with server-side fallbacks for HA ingress, CORS, blocked IIIF images, and broken provider URLs.
+- Public Art `Preview & crop` supports direct drag-to-reposition and mouse-wheel zoom while saving the same composition values used by frame rendering.
+- Device config now derives the ESP32 frame fetch URL from the configured Home Assistant LAN URL/add-on port when available, instead of handing frames browser-origin, ingress, localhost, or HA Cloud URLs they cannot reach.
+- Upstream image-source dispatch is now based on the `internal/imagesource` registry, and Public Art remains registered as an add-on source beside upstream sources.
+
+### Fixed
+- HA ingress preview/thumbnail URLs no longer point at absolute root paths that bypass the add-on ingress prefix.
+- Public Art thumbnail endpoint routing, response encoding, fallback handling, and logging were hardened so grey cards, 401s, `bytes_out:0`, blocked AIC IIIF images, and broken fallback images are easier to avoid/debug.
+- Public Art serving-history writes now use the correct `public_art_serving_history` table name and apply global retention cleanup.
+- `Use this artwork` now saves immediately with default composition; crop controls stay behind the explicit `Preview & crop` path.
+- Upstream `v1.7.6` fixes are included: Gallery/Google Photos EXIF auto-orient and smart-collage second-photo slot-shape matching.
 
 ## v1.7.6
 
